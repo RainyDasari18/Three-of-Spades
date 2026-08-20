@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Spade } from 'lucide-react'
+import { API_URL } from '../api/client'
 import { useApp } from '../state/AppProvider'
 
 export function AuthScreen() {
@@ -8,6 +9,7 @@ export function AuthScreen() {
   const [name, setName] = useState('Rainy')
   const [email, setEmail] = useState('rainy@spades.dev')
   const [password, setPassword] = useState('password')
+  const [busy, setBusy] = useState(false)
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl items-center gap-16 px-6 py-12">
@@ -19,8 +21,8 @@ export function AuthScreen() {
           Three of Spades
         </h1>
         <p className="mt-6 max-w-md text-lg text-[color:var(--color-muted)]">
-          Bid, name hidden partners, cut with trump, and chase 500 points. This
-          UI walks the full v1.0 flow with dummy data — no backend yet.
+          Bid, name hidden partners, cut with trump, and chase 500 points. Your
+          username is what the table sees.
         </p>
         <div className="mt-10 flex gap-6 text-sm text-[color:var(--color-muted)]">
           <div>
@@ -40,10 +42,15 @@ export function AuthScreen() {
 
       <form
         className="w-full max-w-md rounded-3xl border border-white/10 bg-black/25 p-8 gold-ring backdrop-blur"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault()
-          if (mode === 'login') login(email, password, name)
-          else register(name, email, password)
+          setBusy(true)
+          try {
+            if (mode === 'login') await login(email, password)
+            else await register(name, email, password)
+          } finally {
+            setBusy(false)
+          }
         }}
       >
         <div className="mb-6 flex items-center gap-3">
@@ -52,13 +59,13 @@ export function AuthScreen() {
             <div className="font-display text-2xl">
               {mode === 'login' ? 'Welcome back' : 'Create account'}
             </div>
-            <div className="text-sm text-[color:var(--color-muted)]">JWT would live here later</div>
+            <div className="text-sm text-[color:var(--color-muted)]">JWT session · live server</div>
           </div>
         </div>
 
         {mode === 'register' && (
           <label className="mb-3 block text-sm">
-            Name
+            Username
             <input
               className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 outline-none focus:border-[color:var(--color-gold)]"
               value={name}
@@ -86,10 +93,25 @@ export function AuthScreen() {
         {authError && <p className="mb-3 text-sm text-[color:var(--color-danger)]">{authError}</p>}
         <button
           type="submit"
-          className="w-full rounded-xl bg-[color:var(--color-gold)] py-3 font-semibold text-black hover:brightness-110"
+          disabled={busy}
+          className="w-full rounded-xl bg-[color:var(--color-gold)] py-3 font-semibold text-black hover:brightness-110 disabled:opacity-60"
         >
-          {mode === 'login' ? 'Sign in' : 'Register'}
+          {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Register'}
         </button>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <a
+            className="rounded-xl border border-white/10 py-2 text-center text-sm hover:bg-white/5"
+            href={`${API_URL}/api/auth/google`}
+          >
+            Google
+          </a>
+          <a
+            className="rounded-xl border border-white/10 py-2 text-center text-sm hover:bg-white/5"
+            href={`${API_URL}/api/auth/github`}
+          >
+            GitHub
+          </a>
+        </div>
         <button
           type="button"
           className="mt-4 w-full text-sm text-[color:var(--color-muted)] hover:text-white"

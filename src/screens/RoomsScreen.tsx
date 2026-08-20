@@ -84,7 +84,7 @@ export function RoomsScreen() {
                 <Users className="h-4 w-4" /> {room.members.length}/8
               </span>
             </div>
-            <p className="mt-3 text-sm text-[color:var(--color-muted)]">
+            <p className="text-sm text-[color:var(--color-muted)]">
               Persistent room · {room.history.length} games in history · Owner{' '}
               {room.members.find((m) => m.id === room.ownerId)?.name}
             </p>

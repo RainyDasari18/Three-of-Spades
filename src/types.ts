@@ -16,7 +16,7 @@ export type Rank =
 
 export type View = 'auth' | 'rooms' | 'room' | 'game'
 export type AuthMode = 'login' | 'register'
-export type GamePhase = 'bidding' | 'selecting' | 'playing' | 'complete'
+export type GamePhase = 'bidding' | 'selecting' | 'playing' | 'complete' | 'cancelled'
 export type RoomTab = 'lobby' | 'history' | 'stats'
 
 export interface Card {

@@ -13,6 +13,7 @@ import { useApp } from '../state/AppProvider'
 
 export function RoomLobby() {
   const {
+    user,
     activeRoom,
     roomTab,
     setRoomTab,
@@ -25,9 +26,9 @@ export function RoomLobby() {
     archiveRoom,
   } = useApp()
 
-  if (!activeRoom) return null
-  const you = activeRoom.members.find((m) => m.id === 'you')
-  const isOwner = activeRoom.ownerId === 'you'
+  if (!activeRoom || !user) return null
+  const you = activeRoom.members.find((m) => m.id.toLowerCase() === user.id.toLowerCase())
+  const isOwner = activeRoom.ownerId.toLowerCase() === user.id.toLowerCase()
   const n = activeRoom.members.length
   const canStart =
     isOwner && n >= 5 && n <= 8 && activeRoom.members.every((m) => m.online && m.ready)
@@ -84,7 +85,7 @@ export function RoomLobby() {
                     <div className="flex items-center gap-2">
                       {m.isOwner && <Crown className="h-4 w-4 text-[color:var(--color-gold)]" />}
                       <span>{m.name}</span>
-                      {m.id === 'you' && (
+                      {m.id.toLowerCase() === user.id.toLowerCase() && (
                         <span className="text-xs text-[color:var(--color-gold)]">you</span>
                       )}
                     </div>
@@ -141,8 +142,7 @@ export function RoomLobby() {
             </button>
             {!isOwner && (
               <p className="text-xs text-[color:var(--color-muted)]">
-                Only the room owner can start. For this dummy build, open Friday Night (you are
-                owner) or transfer ownership.
+                Only the room owner can start. Share the room code so friends can join.
               </p>
             )}
             {isOwner && (

@@ -1,33 +1,25 @@
 # Three of Spades
 
-Browser UI for the **Three of Spades** trick-taking game (rules v1.0). This is a React client with **dummy data** — no backend, JWT, or SignalR yet.
+React client for the **Three of Spades** game. It talks to the ASP.NET API over REST + SignalR.
 
 ## Run
+
+Start Postgres + the API first (see `three-of-spades-backend`), then:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+UI: [http://localhost:5173](http://localhost:5173)  
+API default: `VITE_API_URL=http://localhost:5203`
 
-## Dummy walkthrough
+## Play
 
-1. Sign in (any email/password works). Register is the same, dummy-only.
-2. Open **Friday Night** (`SPADE3`) — you are the owner, six players are already seated.
-3. Click **Ready**, then **Start game**.
-4. Bid or pass. Dummy seats bid automatically. Range 100–500; pass and re-enter is allowed.
-5. If you win the bid, pick a trump (cut) suit and the required partner conditions (1–4 by table size).
-6. Play 13 tricks. You must follow suit. Partners reveal when their named card is played.
-7. End-game scoring follows the spec. History and room stats update when you return to the room.
+1. Register with a **username** (shown at the table) or sign in.
+2. Create a room or join with a code.
+3. Owner: **Fill table with dummy players** (or wait for friends), everyone **Ready**, then **Start**.
+4. Bid / pass, pick trump and partners if you win, play 13 tricks.
+5. History and room stats update on the server after each hand.
 
-Create a new room and use **Fill table with dummy players** if you want a fresh table. Join **Weekend Cut** with code `CUT500` to see a room you do not own.
-
-## What this UI covers
-
-- Login / register
-- Persistent rooms, create, join by code, members, owner kick/transfer/archive
-- Ready + start gates (5–8, all online and ready)
-- Deal, bidding, trump, hidden partners, self-partner, trick play, scoring
-- History, leaderboard, best/worst bidder and buddy
-- Leave blocked while a hand is active
+Google/GitHub OAuth buttons work once those client IDs are set on the API.

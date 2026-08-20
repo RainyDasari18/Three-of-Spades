@@ -43,7 +43,11 @@ export function GameTable() {
   const bidder = game.bidderSeat != null ? game.players[game.bidderSeat] : null
   const yourTurn = game.currentTurn === humanSeat
   const legal =
-    game.phase === 'playing' && yourTurn ? legalCards(human.hand, game.leadSuit) : []
+    game.phase === 'playing' && yourTurn
+      ? game.playable.length
+        ? game.playable
+        : legalCards(human.hand, game.leadSuit)
+      : []
   const legalIds = new Set(legal.map((c) => c.id))
   const need = partnerConditionCount(game.players.length)
   const raises = game.hasAnyBid
