@@ -389,11 +389,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
               passesSinceRaise: 0,
             }
           }
-          if (g.hasAnyBid && passes >= n) {
+          // High bidder wins as soon as every other player passes — they do not
+          // need to confirm or pass again.
+          if (g.hasAnyBid && passes >= n - 1) {
+            const winnerSeat = g.bidderSeat ?? seat
+            const winner = g.players[winnerSeat]
+            window.setTimeout(() => {
+              pushToast(`${winner.name} has the bid at ${g.bid}.`)
+            }, 40)
             return {
               ...g,
               phase: 'selecting',
-              currentTurn: g.bidderSeat ?? seat,
+              currentTurn: winnerSeat,
               bidLog: log,
             }
           }
@@ -418,7 +425,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       })
     },
-    [],
+    [pushToast],
   )
 
   const placeBid = (amount: number) => {
