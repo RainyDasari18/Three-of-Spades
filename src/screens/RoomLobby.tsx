@@ -1,0 +1,248 @@
+import {
+  Archive,
+  ArrowLeft,
+  Crown,
+  History,
+  Play,
+  Trophy,
+  UserPlus,
+  Users,
+} from 'lucide-react'
+import { SUIT_SYMBOL } from '../lib/cards'
+import { useApp } from '../state/AppProvider'
+
+export function RoomLobby() {
+  const {
+    activeRoom,
+    roomTab,
+    setRoomTab,
+    backToRooms,
+    toggleReady,
+    fillBots,
+    startGame,
+    kick,
+    transferOwner,
+    archiveRoom,
+  } = useApp()
+
+  if (!activeRoom) return null
+  const you = activeRoom.members.find((m) => m.id === 'you')
+  const isOwner = activeRoom.ownerId === 'you'
+  const n = activeRoom.members.length
+  const canStart =
+    isOwner && n >= 5 && n <= 8 && activeRoom.members.every((m) => m.online && m.ready)
+
+  return (
+    <div className="mx-auto max-w-6xl px-6 py-8">
+      <button
+        onClick={backToRooms}
+        className="mb-6 flex items-center gap-2 text-sm text-[color:var(--color-muted)] hover:text-white"
+      >
+        <ArrowLeft className="h-4 w-4" /> All rooms
+      </button>
+
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-5xl text-[color:var(--color-gold)]">{activeRoom.name}</h1>
+          <p className="mt-1 text-sm tracking-[0.25em] text-[color:var(--color-muted)]">
+            CODE {activeRoom.code} · MAX 8 · PERSISTENT
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {['lobby', 'history', 'stats'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setRoomTab(tab as typeof roomTab)}
+              className={`rounded-full px-4 py-2 text-sm capitalize ${
+                roomTab === tab
+                  ? 'bg-[color:var(--color-gold)] text-black'
+                  : 'border border-white/10 text-[color:var(--color-muted)]'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {roomTab === 'lobby' && (
+        <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 font-medium">
+                <Users className="h-4 w-4" /> Members
+              </h2>
+              <span className="text-sm text-[color:var(--color-muted)]">{n}/8</span>
+            </div>
+            <div className="space-y-2">
+              {activeRoom.members.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/5 px-4 py-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      {m.isOwner && <Crown className="h-4 w-4 text-[color:var(--color-gold)]" />}
+                      <span>{m.name}</span>
+                      {m.id === 'you' && (
+                        <span className="text-xs text-[color:var(--color-gold)]">you</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-[color:var(--color-muted)]">
+                      {m.online ? 'Online' : 'Offline'} · {m.ready ? 'Ready' : 'Not ready'}
+                    </div>
+                  </div>
+                  {isOwner && m.id !== 'you' && (
+                    <div className="flex gap-2">
+                      <button
+                        className="text-xs text-[color:var(--color-muted)] hover:text-white"
+                        onClick={() => transferOwner(m.id)}
+                      >
+                        Transfer
+                      </button>
+                      <button
+                        className="text-xs text-[color:var(--color-danger)]"
+                        onClick={() => kick(m.id)}
+                      >
+                        Kick
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={toggleReady}
+              className={`w-full rounded-2xl py-3 font-semibold ${
+                you?.ready
+                  ? 'bg-emerald-700 text-white'
+                  : 'bg-[color:var(--color-gold)] text-black'
+              }`}
+            >
+              {you?.ready ? 'Ready' : 'Click to ready up'}
+            </button>
+            {n < 6 && (
+              <button
+                onClick={fillBots}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 py-3"
+              >
+                <UserPlus className="h-4 w-4" /> Fill table with dummy players
+              </button>
+            )}
+            <button
+              onClick={startGame}
+              disabled={!canStart}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 font-semibold text-black disabled:opacity-40"
+            >
+              <Play className="h-4 w-4" /> Start game
+            </button>
+            {!isOwner && (
+              <p className="text-xs text-[color:var(--color-muted)]">
+                Only the room owner can start. For this dummy build, open Friday Night (you are
+                owner) or transfer ownership.
+              </p>
+            )}
+            {isOwner && (
+              <p className="text-xs text-[color:var(--color-muted)]">
+                Starts only with 5–8 players, everyone online and ready. No spectators, no late
+                joins.
+              </p>
+            )}
+            {isOwner && (
+              <button
+                onClick={archiveRoom}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 py-3 text-sm text-[color:var(--color-muted)]"
+              >
+                <Archive className="h-4 w-4" /> Archive room
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {roomTab === 'history' && (
+        <div className="overflow-hidden rounded-3xl border border-white/10">
+          <div className="flex items-center gap-2 border-b border-white/10 px-5 py-3 text-sm">
+            <History className="h-4 w-4" /> Completed games
+          </div>
+          <table className="w-full text-left text-sm">
+            <thead className="bg-white/5 text-[color:var(--color-muted)]">
+              <tr>
+                <th className="px-5 py-3 font-normal">When</th>
+                <th className="px-5 py-3 font-normal">Bidder</th>
+                <th className="px-5 py-3 font-normal">Bid</th>
+                <th className="px-5 py-3 font-normal">Cut</th>
+                <th className="px-5 py-3 font-normal">Team</th>
+                <th className="px-5 py-3 font-normal">You</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeRoom.history.map((g) => (
+                <tr key={g.id} className="border-t border-white/5">
+                  <td className="px-5 py-3 text-[color:var(--color-muted)]">
+                    {new Date(g.playedAt).toLocaleString()}
+                  </td>
+                  <td className="px-5 py-3">{g.bidder}</td>
+                  <td className="px-5 py-3">{g.bid}</td>
+                  <td className="px-5 py-3">{SUIT_SYMBOL[g.trump]}</td>
+                  <td className="px-5 py-3">
+                    {g.teamPoints} {g.success ? 'made' : 'failed'}
+                  </td>
+                  <td className={`px-5 py-3 ${g.yourScore >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {g.yourScore > 0 ? '+' : ''}
+                    {g.yourScore}
+                  </td>
+                </tr>
+              ))}
+              {activeRoom.history.length === 0 && (
+                <tr>
+                  <td className="px-5 py-6 text-[color:var(--color-muted)]" colSpan={6}>
+                    No games yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {roomTab === 'stats' && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+            <h3 className="mb-4 flex items-center gap-2 font-medium">
+              <Trophy className="h-4 w-4 text-[color:var(--color-gold)]" /> Room stats
+            </h3>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>Games played</div>
+              <div>{activeRoom.stats.gamesPlayed}</div>
+              <div>Best bidder</div>
+              <div>{activeRoom.stats.bestBidder}</div>
+              <div>Worst bidder</div>
+              <div>{activeRoom.stats.worstBidder}</div>
+              <div>Best buddy</div>
+              <div>{activeRoom.stats.bestBuddy}</div>
+              <div>Worst buddy</div>
+              <div>{activeRoom.stats.worstBuddy}</div>
+            </dl>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+            <h3 className="mb-4 font-medium">Leaderboard</h3>
+            <ol className="space-y-2">
+              {activeRoom.stats.leaderboard.map((row, i) => (
+                <li key={row.name} className="flex justify-between text-sm">
+                  <span>
+                    {i + 1}. {row.name}
+                  </span>
+                  <span className="text-[color:var(--color-gold)]">{row.score}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

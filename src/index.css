@@ -1,0 +1,109 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Cormorant Garamond', serif;
+  --font-sans: 'Outfit', sans-serif;
+  --color-felt: #0b3d2e;
+  --color-felt-deep: #061910;
+  --color-gold: #e8c547;
+  --color-gold-dim: #b8942a;
+  --color-ink: #f4efe2;
+  --color-muted: #b7c4bc;
+  --color-danger: #e45d5d;
+}
+
+.font-display {
+  font-family: 'Cormorant Garamond', serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(232, 197, 71, 0.12), transparent 50%),
+    radial-gradient(900px 500px at 100% 100%, rgba(18, 80, 58, 0.55), transparent 45%),
+    linear-gradient(180deg, #082017 0%, #04110c 100%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.felt-table {
+  background:
+    radial-gradient(ellipse at center, #1a6a4e 0%, #0b3d2e 42%, #071f18 78%);
+  box-shadow:
+    inset 0 0 80px rgba(0, 0, 0, 0.45),
+    0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.gold-ring {
+  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.35), 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+
+.hand-fan {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.hand-fan > button {
+  margin-left: -1.6rem;
+  transition: transform 180ms ease, margin 180ms ease;
+}
+
+.hand-fan > button:hover,
+.hand-fan > button:focus-visible {
+  transform: translateY(-18px) scale(1.05);
+  z-index: 5;
+  margin-right: 0.4rem;
+}
+
+.card-face {
+  border-radius: 0.7rem;
+  background: linear-gradient(180deg, #fffdf8 0%, #f3ead6 100%);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+.card-back {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #14261e,
+      #14261e 6px,
+      #1c3a2d 6px,
+      #1c3a2d 12px
+    );
+  border: 2px solid #e8c547;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 280ms ease both;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2d5a48;
+  border-radius: 99px;
+}
