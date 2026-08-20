@@ -54,9 +54,13 @@ body {
   align-items: flex-end;
 }
 
-.hand-fan > button {
+.hand-fan > * {
   margin-left: -1.6rem;
   transition: transform 180ms ease, margin 180ms ease;
+}
+
+.hand-fan > *:first-child {
+  margin-left: 0;
 }
 
 .hand-fan > button:hover,
