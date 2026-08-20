@@ -39,13 +39,16 @@ export function GameTable() {
 
   if (!game) return null
 
-  const human = game.players[humanSeat]
-  const bidder = game.bidderSeat != null ? game.players[game.bidderSeat] : null
-  const yourTurn = game.currentTurn === humanSeat
+  const at = (seat: number) => game.players.find((p) => p.seat === seat) ?? game.players[seat]
+  const human = at(humanSeat)
+  const bidder = game.bidderSeat != null ? at(game.bidderSeat) : null
+  const yourTurn = Number(game.currentTurn) === Number(humanSeat)
+  const serverIds = new Set(game.playable.map((c) => c.id).filter(Boolean))
+  const fromServer = human.hand.filter((c) => serverIds.has(c.id))
   const legal =
     game.phase === 'playing' && yourTurn
-      ? game.playable.length
-        ? game.playable
+      ? fromServer.length
+        ? fromServer
         : legalCards(human.hand, game.leadSuit)
       : []
   const legalIds = new Set(legal.map((c) => c.id))
@@ -62,7 +65,7 @@ export function GameTable() {
           <span className="font-display text-xl">Three of Spades</span>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-[color:var(--color-muted)]">
-          <span>Dealer {game.players[game.dealerSeat].name}</span>
+          <span>Dealer {at(game.dealerSeat).name}</span>
           {game.hasAnyBid && <span>Bid {game.bid}</span>}
           {bidder && <span>Bidder {bidder.name}</span>}
           {game.trump && <span>Cut {SUIT_SYMBOL[game.trump]}</span>}
@@ -87,13 +90,15 @@ export function GameTable() {
           </div>
           <div className="flex min-h-[7rem] items-center justify-center gap-2">
             {game.currentTrick.length === 0 && game.phase === 'playing' && (
-              <p className="text-sm text-[color:var(--color-muted)]">Waiting for lead</p>
+              <p className="text-sm text-[color:var(--color-muted)]">
+                {yourTurn ? 'Your lead — click a card' : 'Waiting for lead'}
+              </p>
             )}
             {game.currentTrick.map((p) => (
               <div key={p.card.id} className="text-center">
                 <PlayingCard card={p.card} size="sm" />
                 <div className="mt-1 text-[0.65rem] text-[color:var(--color-muted)]">
-                  {game.players[p.seat].name}
+                  {at(p.seat).name}
                 </div>
               </div>
             ))}
@@ -101,16 +106,16 @@ export function GameTable() {
           {game.partnerSeats.length > 0 && (
             <div className="mt-2 text-center text-xs text-[color:var(--color-gold)]">
               Revealed:{' '}
-              {game.partnerSeats.map((s) => game.players[s].name).join(', ')}
+              {game.partnerSeats.map((s) => at(s).name).join(', ')}
               {game.partnerSeats.includes(game.bidderSeat ?? -1) ? ' · self-partner possible' : ''}
             </div>
           )}
         </div>
 
         {order.map((seat, i) => {
-          const p = game.players[seat]
+          const p = at(seat)
           const style = seatStyle(i, game.players.length)
-          const turn = game.currentTurn === seat && game.phase !== 'complete'
+          const turn = Number(game.currentTurn) === Number(seat) && game.phase !== 'complete'
           return (
             <div key={p.id} className="absolute z-20 text-center" style={style}>
               <div
@@ -163,14 +168,14 @@ export function GameTable() {
               <div className="mb-3 flex justify-between text-sm">
                 <span>Current high {game.hasAnyBid ? game.bid : '—'}</span>
                 <span>
-                  Turn: {game.players[game.currentTurn].name}
+                  Turn: {at(game.currentTurn).name}
                   {yourTurn ? ' (you)' : ''}
                 </span>
               </div>
               <div className="mb-4 max-h-28 overflow-auto text-xs text-[color:var(--color-muted)]">
                 {game.bidLog.map((b, i) => (
                   <div key={i}>
-                    {game.players[b.seat].name} {b.kind === 'pass' ? 'passed' : `bid ${b.amount}`}
+                    {at(b.seat).name} {b.kind === 'pass' ? 'passed' : `bid ${b.amount}`}
                   </div>
                 ))}
               </div>
@@ -266,6 +271,18 @@ export function GameTable() {
   )
 }
 
+function defaultPartnerRows(need: number, copies: (rank: Rank, suit: Suit) => number): PartnerCondition[] {
+  const rows: PartnerCondition[] = []
+  for (const rank of RANK_PICK) {
+    for (const suit of SUITS) {
+      if (copies(rank, suit) < 1) continue
+      rows.push({ nth: 1, rank, suit })
+      if (rows.length >= need) return rows
+    }
+  }
+  return rows
+}
+
 function SelectionPanel({
   need,
   copies,
@@ -276,9 +293,23 @@ function SelectionPanel({
   onConfirm: (trump: Suit, conditions: PartnerCondition[]) => void
 }) {
   const [trump, setTrump] = useState<Suit>('S')
-  const [rows, setRows] = useState<PartnerCondition[]>(() =>
-    Array.from({ length: need }, () => ({ nth: 1 as const, rank: 'A' as Rank, suit: 'S' as Suit })),
-  )
+  const [rows, setRows] = useState<PartnerCondition[]>(() => defaultPartnerRows(need, copies))
+  const [error, setError] = useState('')
+  const lock = () => {
+    const keys = rows.slice(0, need).map((r) => `${r.nth}${r.rank}${r.suit}`)
+    if (new Set(keys).size !== keys.length) {
+      setError('Each partner condition must be different.')
+      return
+    }
+    for (const row of rows.slice(0, need)) {
+      if (row.nth === 2 && copies(row.rank, row.suit) < 2) {
+        setError(`There is no 2nd ${row.rank}${SUIT_SYMBOL[row.suit]} in this deck.`)
+        return
+      }
+    }
+    setError('')
+    onConfirm(trump, rows.slice(0, need))
+  }
   return (
     <div>
       <p className="mb-3 text-sm">You won the bid. Choose a cut suit and {need} partner condition{need > 1 ? 's' : ''}.</p>
@@ -346,9 +377,10 @@ function SelectionPanel({
           </div>
         ))}
       </div>
+      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
       <button
         className="mt-4 rounded-xl bg-[color:var(--color-gold)] px-5 py-2 font-semibold text-black"
-        onClick={() => onConfirm(trump, rows.slice(0, need))}
+        onClick={lock}
       >
         Lock trump & partners
       </button>

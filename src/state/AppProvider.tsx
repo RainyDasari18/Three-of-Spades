@@ -13,6 +13,7 @@ import {
   API_URL,
   api,
   getToken,
+  isolateTabSession,
   setToken,
   type ApiRoom,
   type ApiSnapshot,
@@ -111,7 +112,7 @@ function mapRoom(dto: ApiRoom, userId: string): Room {
       pointsWon: 0,
       scoreDelta: 0,
     })),
-    history: dto.history.map(
+    history: (dto.history ?? []).map(
       (g): GameRecord => ({
         id: g.id,
         playedAt: g.playedAt,
@@ -121,25 +122,35 @@ function mapRoom(dto: ApiRoom, userId: string): Room {
         trump: g.trump as Suit,
         success: g.success,
         teamPoints: g.teamPoints,
-        yourScore: g.yourScore,
+        yourScore: g.yourScore ?? 0,
       }),
     ),
-    stats: dto.stats,
+    stats: {
+      gamesPlayed: dto.stats?.gamesPlayed ?? 0,
+      bestBidder: dto.stats?.bestBidder ?? '—',
+      worstBidder: dto.stats?.worstBidder ?? '—',
+      bestBuddy: dto.stats?.bestBuddy ?? '—',
+      worstBuddy: dto.stats?.worstBuddy ?? '—',
+      leaderboard: dto.stats?.leaderboard ?? [],
+    },
   }
 }
 
 function mapGame(snap: ApiSnapshot, userId: string): LiveGame {
-  const phase = snap.phase as GamePhase
+  const phase = String(snap.phase ?? '').toLowerCase() as GamePhase
   const yourHand = (snap.yourHand ?? []).map(card)
+  const currentTurn = Number(snap.currentTurn)
+  const dealerSeat = Number(snap.dealerSeat)
+  const bidderSeat = snap.bidderSeat == null ? null : Number(snap.bidderSeat)
   return {
     roomId: snap.roomId,
-    dealerSeat: snap.dealerSeat,
+    dealerSeat,
     phase: phase === 'cancelled' ? 'cancelled' : phase,
-    currentTurn: snap.currentTurn,
-    bid: snap.bid,
-    bidderSeat: snap.bidderSeat,
+    currentTurn,
+    bid: Number(snap.bid) || 0,
+    bidderSeat,
     bidLog: (snap.bidLog ?? []).map((b) => ({
-      seat: b.seat,
+      seat: Number(b.seat),
       kind: b.kind === 'pass' ? 'pass' : 'bid',
       amount: b.amount ?? undefined,
     })),
@@ -150,21 +161,23 @@ function mapGame(snap: ApiSnapshot, userId: string): LiveGame {
       rank: c.rank as PartnerCondition['rank'],
       suit: c.suit as Suit,
     })),
-    partnerSeats: snap.partnerSeats ?? [],
-    currentTrick: (snap.currentTrick ?? []).map((t) => ({ seat: t.seat, card: card(t.card) })),
+    partnerSeats: (snap.partnerSeats ?? []).map(Number),
+    currentTrick: (snap.currentTrick ?? []).map((t) => ({ seat: Number(t.seat), card: card(t.card) })),
     leadSuit: (snap.leadSuit as Suit | null) ?? null,
-    trickNumber: snap.trickNumber,
+    trickNumber: Number(snap.trickNumber) || 1,
     teamPoints: snap.teamPoints,
     success: snap.success,
     activeDeck: buildActiveDeck(snap.players.length),
     playable: (snap.playable ?? []).map(card),
     cancelReason: snap.cancelReason,
-    players: snap.players.map((p) => {
+    players: [...(snap.players ?? [])]
+      .sort((a, b) => a.seat - b.seat)
+      .map((p) => {
       const mine = p.userId.toLowerCase() === userId.toLowerCase()
       return {
         id: p.userId,
         name: p.userName,
-        seat: p.seat,
+        seat: Number(p.seat),
         isHuman: mine,
         isOwner: false,
         online: true,
@@ -216,15 +229,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pushToast(message, 'danger')
   }
 
+  const ignoreFinishedHand = useRef(false)
+
   const applySnapshot = useCallback(
     (snap: ApiSnapshot) => {
       const me = userRef.current
       if (!me) return
-      if (snap.phase === 'cancelled') {
+      const phase = String(snap.phase ?? '').toLowerCase()
+      if (phase === 'cancelled') {
+        ignoreFinishedHand.current = true
         setGame(null)
         setView('room')
         pushToast(snap.cancelReason || 'Game cancelled.', 'danger')
         return
+      }
+      if (ignoreFinishedHand.current) {
+        if (phase === 'complete') return
+        ignoreFinishedHand.current = false
       }
       setGame(mapGame(snap, me.id))
       setView('game')
@@ -252,10 +273,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const connectHub = useCallback(
-    async (token: string) => {
+    async (_token: string) => {
       await hubRef.current?.stop().catch(() => undefined)
       const conn = new HubConnectionBuilder()
-        .withUrl(`${API_URL}/hubs/game`, { accessTokenFactory: () => token })
+        .withUrl(`${API_URL}/hubs/game`, { accessTokenFactory: () => getToken() ?? '' })
         .withAutomaticReconnect()
         .configureLogging(LogLevel.Warning)
         .build()
@@ -289,17 +310,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const oauthToken = params.get('token')
+    let cancelled = false
     const boot = async () => {
+      await isolateTabSession()
+      if (cancelled) return
       try {
-        if (oauthToken) {
-          setToken(oauthToken)
-          window.history.replaceState({}, '', '/')
-        }
         const token = getToken()
         if (!token) return
         const me = await api<AuthPayload>('/api/auth/me')
+        if (cancelled) return
         await enterSession({ ...me, token: me.token || token })
       } catch {
         setToken(null)
@@ -307,19 +326,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     void boot()
     return () => {
-      void hubRef.current?.stop()
+      cancelled = true
     }
   }, [enterSession])
 
   useEffect(() => {
-    if (view !== 'room' || !activeRoomId) return
+    if (view !== 'room' && view !== 'game') return
+    if (!activeRoomId) return
     const tick = window.setInterval(() => {
-      void refreshRoom(activeRoomId)
+      if (view === 'room') void refreshRoom(activeRoomId)
       void hubRef.current?.invoke('Heartbeat', activeRoomId).catch(() => undefined)
     }, 2500)
     void hubRef.current?.invoke('JoinRoom', activeRoomId).catch(() => undefined)
     return () => window.clearInterval(tick)
   }, [view, activeRoomId, refreshRoom])
+
+  const waitingOnOthers = Boolean(
+    view === 'game' &&
+      game &&
+      (() => {
+        const me = game.players.find((p) => p.isHuman)
+        if (!me) return false
+        return (
+          (game.phase === 'bidding' && game.currentTurn !== me.seat) ||
+          (game.phase === 'selecting' && game.bidderSeat !== me.seat) ||
+          (game.phase === 'playing' && game.currentTurn !== me.seat)
+        )
+      })(),
+  )
+
+  useEffect(() => {
+    if (!waitingOnOthers || !activeRoomId) return
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const snap = await api<ApiSnapshot>(`/api/rooms/${activeRoomId}/game`)
+        if (!cancelled) applySnapshot(snap)
+      } catch {
+        /* table may not be ready */
+      }
+    }
+    const tick = window.setInterval(() => void poll(), 800)
+    void poll()
+    return () => {
+      cancelled = true
+      window.clearInterval(tick)
+    }
+  }, [waitingOnOthers, activeRoomId, applySnapshot])
 
   const login = async (email: string, password: string) => {
     try {
@@ -388,8 +441,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRoomTab('lobby')
       setView('room')
       if (dto.activeGameId) {
-        const snap = await api<ApiSnapshot>(`/api/rooms/${dto.id}/game`)
-        applySnapshot(snap)
+        try {
+          const snap = await api<ApiSnapshot>(`/api/rooms/${dto.id}/game`)
+          const phase = String(snap.phase ?? '').toLowerCase()
+          if (phase !== 'complete' && phase !== 'cancelled') applySnapshot(snap)
+        } catch {
+          /* hand already finished */
+        }
       }
     } catch (e) {
       fail(e)
@@ -403,8 +461,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRoomTab('lobby')
       setView('room')
       if (dto.activeGameId) {
-        const snap = await api<ApiSnapshot>(`/api/rooms/${id}/game`)
-        applySnapshot(snap)
+        try {
+          const snap = await api<ApiSnapshot>(`/api/rooms/${id}/game`)
+          const phase = String(snap.phase ?? '').toLowerCase()
+          if (phase !== 'complete' && phase !== 'cancelled') applySnapshot(snap)
+        } catch {
+          /* hand already finished */
+        }
       }
     } catch (e) {
       fail(e)
@@ -454,8 +517,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const startGame = async () => {
     if (!activeRoomId) return
     try {
+      await hubRef.current?.invoke('JoinRoom', activeRoomId).catch(() => undefined)
+      ignoreFinishedHand.current = false
       const snap = await api<ApiSnapshot>(`/api/rooms/${activeRoomId}/start`, { method: 'POST' })
-      await hubRef.current?.invoke('JoinRoom', activeRoomId)
       applySnapshot(snap)
       pushToast('Cards dealt. Bidding is open.')
     } catch (e) {
@@ -511,10 +575,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const roomId = game?.roomId ?? activeRoomId
     if (!roomId) return
     try {
-      if (hubRef.current?.state === 'Connected') {
-        await hubRef.current.invoke(method, roomId, ...args)
-        return
-      }
       if (method === 'PlaceBid') {
         applySnapshot(await api<ApiSnapshot>(`/api/rooms/${roomId}/game/bid`, { method: 'POST', body: JSON.stringify({ amount: args[0] }) }))
       } else if (method === 'PassBid') {
@@ -537,9 +597,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const finishToLobby = async () => {
     const id = game?.roomId ?? activeRoomId
+    ignoreFinishedHand.current = true
     setGame(null)
-    setView('room')
+    if (id) setActiveRoomId(id)
     setRoomTab('history')
+    setView('room')
     if (id) {
       try {
         await refreshRoom(id)

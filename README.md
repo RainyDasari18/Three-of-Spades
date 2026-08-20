@@ -22,4 +22,4 @@ API default: `VITE_API_URL=http://localhost:5203`
 4. Bid / pass, pick trump and partners if you win, play 13 tricks.
 5. History and room stats update on the server after each hand.
 
-Google/GitHub OAuth buttons work once those client IDs are set on the API.
+Google/GitHub sign-in is not used. Register or sign in with email, password, and a username.

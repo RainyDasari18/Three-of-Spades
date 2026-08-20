@@ -17,7 +17,10 @@ export function RoomsScreen() {
           <Spade className="h-8 w-8 text-[color:var(--color-gold)]" fill="currentColor" />
           <div>
             <h1 className="font-display text-4xl text-[color:var(--color-gold)]">Rooms</h1>
-            <p className="text-sm text-[color:var(--color-muted)]">Signed in as {user?.name}</p>
+            <p className="text-sm text-[color:var(--color-muted)]">
+              This tab: <span className="text-white">{user?.name}</span>
+              {user?.email ? ` · ${user.email}` : ''}
+            </p>
           </div>
         </div>
         <button

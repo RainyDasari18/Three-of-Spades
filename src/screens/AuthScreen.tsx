@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Spade } from 'lucide-react'
-import { API_URL } from '../api/client'
 import { useApp } from '../state/AppProvider'
 
 export function AuthScreen() {
@@ -98,20 +97,9 @@ export function AuthScreen() {
         >
           {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Register'}
         </button>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <a
-            className="rounded-xl border border-white/10 py-2 text-center text-sm hover:bg-white/5"
-            href={`${API_URL}/api/auth/google`}
-          >
-            Google
-          </a>
-          <a
-            className="rounded-xl border border-white/10 py-2 text-center text-sm hover:bg-white/5"
-            href={`${API_URL}/api/auth/github`}
-          >
-            GitHub
-          </a>
-        </div>
+        <p className="mt-3 text-xs text-[color:var(--color-muted)]">
+          Use a different email in each tab. Username is what the table shows.
+        </p>
         <button
           type="button"
           className="mt-4 w-full text-sm text-[color:var(--color-muted)] hover:text-white"

@@ -26,7 +26,14 @@ export function RoomLobby() {
     archiveRoom,
   } = useApp()
 
-  if (!activeRoom || !user) return null
+  if (!user) return null
+  if (!activeRoom) {
+    return (
+      <div className="mx-auto max-w-6xl px-6 py-8 text-sm text-[color:var(--color-muted)]">
+        Loading room…
+      </div>
+    )
+  }
   const you = activeRoom.members.find((m) => m.id.toLowerCase() === user.id.toLowerCase())
   const isOwner = activeRoom.ownerId.toLowerCase() === user.id.toLowerCase()
   const n = activeRoom.members.length
@@ -45,6 +52,10 @@ export function RoomLobby() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-5xl text-[color:var(--color-gold)]">{activeRoom.name}</h1>
+          <p className="mt-1 text-sm text-[color:var(--color-muted)]">
+            Playing as {user.name}
+            {user.email ? ` · ${user.email}` : ''}
+          </p>
           <p className="mt-1 text-sm tracking-[0.25em] text-[color:var(--color-muted)]">
             CODE {activeRoom.code} · MAX 8 · PERSISTENT
           </p>
@@ -200,7 +211,7 @@ export function RoomLobby() {
               {activeRoom.history.length === 0 && (
                 <tr>
                   <td className="px-5 py-6 text-[color:var(--color-muted)]" colSpan={6}>
-                    No games yet.
+                    No completed games yet. Finish a hand to see it here.
                   </td>
                 </tr>
               )}
@@ -231,6 +242,9 @@ export function RoomLobby() {
           <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
             <h3 className="mb-4 font-medium">Leaderboard</h3>
             <ol className="space-y-2">
+              {activeRoom.stats.leaderboard.length === 0 && (
+                <li className="text-sm text-[color:var(--color-muted)]">No scores yet.</li>
+              )}
               {activeRoom.stats.leaderboard.map((row, i) => (
                 <li key={row.name} className="flex justify-between text-sm">
                   <span>

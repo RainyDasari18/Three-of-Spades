@@ -1,14 +1,75 @@
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5203'
 
 const TOKEN_KEY = 'tos.token'
+const SESSION_KEY = 'tos.sessionKey'
+const CHANNEL = 'tos-tab-auth'
+const TAB_INSTANCE = crypto.randomUUID()
+
+let memoryToken: string | null = null
+
+try {
+  localStorage.removeItem(TOKEN_KEY)
+} catch {
+  /* ignore */
+}
+
+function getSessionKey() {
+  let key = sessionStorage.getItem(SESSION_KEY)
+  if (!key) {
+    key = crypto.randomUUID()
+    sessionStorage.setItem(SESSION_KEY, key)
+  }
+  return key
+}
+
+/** If this tab was duplicated, sessionStorage (and the JWT) is copied. Drop that copy. */
+export function isolateTabSession(): Promise<void> {
+  return new Promise((resolve) => {
+    const sessionKey = getSessionKey()
+    let duplicated = false
+    try {
+      const bc = new BroadcastChannel(CHANNEL)
+      const onMessage = (ev: MessageEvent) => {
+        const data = ev.data as { type?: string; sessionKey?: string; instanceId?: string }
+        if (data?.sessionKey !== sessionKey || data.instanceId === TAB_INSTANCE) return
+        if (data.type === 'pong') duplicated = true
+        if (data.type === 'ping') {
+          bc.postMessage({ type: 'pong', sessionKey, instanceId: TAB_INSTANCE })
+        }
+      }
+      bc.addEventListener('message', onMessage)
+      bc.postMessage({ type: 'ping', sessionKey, instanceId: TAB_INSTANCE })
+      window.setTimeout(() => {
+        bc.removeEventListener('message', onMessage)
+        if (duplicated) {
+          sessionStorage.removeItem(TOKEN_KEY)
+          sessionStorage.setItem(SESSION_KEY, crypto.randomUUID())
+          memoryToken = null
+        } else {
+          memoryToken = sessionStorage.getItem(TOKEN_KEY)
+        }
+        resolve()
+      }, 120)
+    } catch {
+      memoryToken = sessionStorage.getItem(TOKEN_KEY)
+      resolve()
+    }
+  })
+}
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY)
+  return memoryToken ?? sessionStorage.getItem(TOKEN_KEY)
 }
 
 export function setToken(token: string | null) {
-  if (token) localStorage.setItem(TOKEN_KEY, token)
-  else localStorage.removeItem(TOKEN_KEY)
+  memoryToken = token
+  if (token) sessionStorage.setItem(TOKEN_KEY, token)
+  else sessionStorage.removeItem(TOKEN_KEY)
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 export class ApiError extends Error {
@@ -24,7 +85,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!(init.body instanceof FormData)) headers.set('Content-Type', 'application/json')
   const token = getToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers })
+  const res = await fetch(`${API_URL}${path}`, { ...init, headers, cache: 'no-store' })
   if (res.status === 204) return undefined as T
   const text = await res.text()
   const data = text ? (JSON.parse(text) as Record<string, unknown>) : {}
