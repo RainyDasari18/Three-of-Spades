@@ -1,3 +1,4 @@
+import { Spade } from 'lucide-react'
 import { AuthScreen } from './screens/AuthScreen'
 import { GameTable } from './screens/GameTable'
 import { RoomLobby } from './screens/RoomLobby'
@@ -26,8 +27,19 @@ function Toasts() {
   )
 }
 
+function BootScreen() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4">
+      <Spade className="h-10 w-10 text-[color:var(--color-gold)]" fill="currentColor" />
+      <p className="font-display text-3xl text-[color:var(--color-gold)]">Three of Spades</p>
+      <p className="text-sm text-[color:var(--color-muted)]">Restoring your session…</p>
+    </div>
+  )
+}
+
 function Shell() {
-  const { view } = useApp()
+  const { view, booting } = useApp()
+  if (booting) return <BootScreen />
   return (
     <>
       {view === 'auth' && <AuthScreen />}

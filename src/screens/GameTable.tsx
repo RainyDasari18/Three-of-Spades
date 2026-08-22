@@ -1,5 +1,5 @@
-import { useMemo, useState, type CSSProperties } from 'react'
-import { Crown, Spade } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Clock, Crown, Spade } from 'lucide-react'
 import type { PartnerCondition, Rank, Suit } from '../types'
 import {
   SUIT_NAME,
@@ -7,6 +7,7 @@ import {
   SUITS,
   conditionLabel,
   copiesInDeck,
+  isRed,
   legalCards,
   partnerConditionCount,
 } from '../lib/cards'
@@ -31,11 +32,42 @@ export function GameTable() {
     useApp()
 
   const humanSeat = game?.players.find((p) => p.isHuman)?.seat ?? 0
+  const prevPhase = useRef<string | null>(null)
+  const [showCall, setShowCall] = useState(false)
+  const [secsLeft, setSecsLeft] = useState<number | null>(null)
 
   const order = useMemo(() => {
     if (!game) return []
     return game.players.map((_, i) => (humanSeat + i) % game.players.length)
   }, [game, humanSeat])
+
+  useEffect(() => {
+    if (!game) return
+    const prev = prevPhase.current
+    prevPhase.current = game.phase
+    if (game.phase !== 'playing' || !game.trump) return
+    if (prev !== 'selecting' && prev !== 'bidding') return
+    setShowCall(true)
+    const t = window.setTimeout(() => setShowCall(false), 5000)
+    return () => window.clearTimeout(t)
+    // Only when the phase changes — not on every live snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase])
+
+  useEffect(() => {
+    const ends = game?.turnEndsAt
+    if (!ends || game.phase === 'complete' || game.phase === 'cancelled') {
+      setSecsLeft(null)
+      return
+    }
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((Date.parse(ends) - Date.now()) / 1000))
+      setSecsLeft(Number.isFinite(left) ? left : null)
+    }
+    tick()
+    const id = window.setInterval(tick, 200)
+    return () => window.clearInterval(id)
+  }, [game?.turnEndsAt, game?.phase])
 
   if (!game) return null
 
@@ -58,37 +90,54 @@ export function GameTable() {
     : [100, 120, 140, 180, 220]
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between px-5 py-3">
+    <div className="flex h-screen flex-col overflow-hidden">
+      <header className="flex shrink-0 items-center justify-between gap-4 px-5 py-3">
         <div className="flex items-center gap-2">
-          <Spade className="h-5 w-5 text-[color:var(--color-gold)]" fill="currentColor" />
-          <span className="font-display text-xl">Three of Spades</span>
+          <Spade className="h-6 w-6 text-[color:var(--color-gold)]" fill="currentColor" />
+          <span className="font-display text-2xl">Three of Spades</span>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-[color:var(--color-muted)]">
+        <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-base text-[color:var(--color-muted)]">
           <span>Dealer {at(game.dealerSeat).name}</span>
-          {game.hasAnyBid && <span>Bid {game.bid}</span>}
-          {bidder && <span>Bidder {bidder.name}</span>}
-          {game.trump && <span>Cut {SUIT_SYMBOL[game.trump]}</span>}
+          {game.hasAnyBid && (
+            <span className="text-[color:var(--color-gold)]">Bid {game.bid}</span>
+          )}
+          {bidder && <span className="text-amber-300">Bidder {bidder.name}</span>}
+          {game.trump && (
+            <span className={isRed(game.trump) ? 'text-red-400' : 'text-white'}>
+              Cut {SUIT_SYMBOL[game.trump]} {SUIT_NAME[game.trump]}
+            </span>
+          )}
           <span>
             Trick {Math.min(game.trickNumber, 13)}/13
           </span>
-          <button className="underline" onClick={backToRooms}>
+          {secsLeft != null && game.phase !== 'complete' && (
+            <span
+              className={`flex items-center gap-1 font-semibold tabular-nums ${
+                secsLeft <= 10 ? 'text-[color:var(--color-danger)]' : 'text-[color:var(--color-gold)]'
+              }`}
+            >
+              <Clock className="h-4 w-4" />
+              {Math.floor(secsLeft / 60)}:{String(secsLeft % 60).padStart(2, '0')}
+            </span>
+          )}
+          <button className="text-sm underline" onClick={backToRooms}>
             Leave (blocked if active)
           </button>
         </div>
       </header>
 
-      <div className="relative mx-auto h-[70vh] w-[min(1100px,96vw)]">
+      <div className="relative min-h-0 flex-1">
+        <div className="relative mx-auto h-full w-full max-w-[1100px]">
         <div className="felt-table absolute inset-0 rounded-[46%_/_42%] border border-[color:var(--color-gold)]/25" />
 
-        <div className="absolute left-1/2 top-[42%] z-10 w-[min(420px,80%)] -translate-x-1/2 -translate-y-1/2">
+        <div className="absolute left-1/2 top-[58%] z-10 w-[min(920px,94%)] -translate-x-1/2 -translate-y-1/2">
           <div className="mb-3 text-center text-xs tracking-widest text-[color:var(--color-gold)]">
             {game.phase === 'bidding' && 'BIDDING'}
             {game.phase === 'selecting' && 'TRUMP & PARTNERS'}
             {game.phase === 'playing' && 'FOLLOW SUIT · HIDDEN POINTS'}
             {game.phase === 'complete' && 'HAND COMPLETE'}
           </div>
-          <div className="flex min-h-[7rem] items-center justify-center gap-2">
+          <div className="flex min-h-[11rem] flex-wrap items-center justify-center gap-3">
             {game.currentTrick.length === 0 && game.phase === 'playing' && (
               <p className="text-sm text-[color:var(--color-muted)]">
                 {yourTurn ? 'Your lead — click a card' : 'Waiting for lead'}
@@ -96,15 +145,15 @@ export function GameTable() {
             )}
             {game.currentTrick.map((p) => (
               <div key={p.card.id} className="text-center">
-                <PlayingCard card={p.card} size="sm" />
-                <div className="mt-1 text-[0.65rem] text-[color:var(--color-muted)]">
+                <PlayingCard card={p.card} size="xl" />
+                <div className="mt-1 text-sm text-[color:var(--color-muted)]">
                   {at(p.seat).name}
                 </div>
               </div>
             ))}
           </div>
           {game.partnerSeats.length > 0 && (
-            <div className="mt-2 text-center text-xs text-[color:var(--color-gold)]">
+            <div className="mt-2 text-center text-sm text-sky-300">
               Revealed:{' '}
               {game.partnerSeats.map((s) => at(s).name).join(', ')}
               {game.partnerSeats.includes(game.bidderSeat ?? -1) ? ' · self-partner possible' : ''}
@@ -116,19 +165,29 @@ export function GameTable() {
           const p = at(seat)
           const style = seatStyle(i, game.players.length)
           const turn = Number(game.currentTurn) === Number(seat) && game.phase !== 'complete'
+          const isBidder = game.bidderSeat === seat
+          const isPartner = game.partnerSeats.includes(seat)
+          const roleChip = isBidder
+            ? 'bg-amber-400 text-black'
+            : isPartner
+              ? 'bg-sky-400 text-black'
+              : turn
+                ? 'bg-[color:var(--color-gold)] text-black'
+                : 'bg-black/50'
           return (
             <div key={p.id} className="absolute z-20 text-center" style={style}>
               <div
-                className={`mx-auto mb-1 w-max rounded-full px-3 py-1 text-xs ${
-                  turn ? 'bg-[color:var(--color-gold)] text-black' : 'bg-black/50'
+                className={`mx-auto mb-1 w-max rounded-full px-3 py-1 text-xs ${roleChip} ${
+                  turn ? 'ring-2 ring-white' : ''
                 }`}
               >
                 {p.seat === game.dealerSeat && (
                   <Crown className="mr-1 inline h-3 w-3" />
                 )}
                 {p.name}
-                {game.bidderSeat === seat ? ' · Bid' : ''}
-                {game.partnerSeats.includes(seat) ? ' · Partner' : ''}
+                {isBidder ? ' · Bid' : ''}
+                {isPartner ? ' · Partner' : ''}
+                {turn && secsLeft != null ? ` · ${secsLeft}s` : ''}
               </div>
               {i !== 0 && (
                 <div className="flex justify-center">
@@ -142,9 +201,10 @@ export function GameTable() {
             </div>
           )
         })}
+        </div>
       </div>
 
-      <div className="hand-fan relative z-30 px-4 pb-6">
+      <div className="hand-fan relative z-30 shrink-0 px-4 pb-4">
         {human.hand.map((card) => {
           const ok = game.phase === 'playing' && yourTurn && legalIds.has(card.id)
           const dimmed = game.phase === 'playing' && yourTurn && !ok
@@ -161,66 +221,6 @@ export function GameTable() {
         })}
       </div>
 
-      {game.phase !== 'playing' && game.phase !== 'complete' && (
-        <div className="mx-auto mb-6 w-[min(720px,94vw)] rounded-3xl border border-white/10 bg-black/40 p-5 rise">
-          {game.phase === 'bidding' && (
-            <div>
-              <div className="mb-3 flex justify-between text-sm">
-                <span>Current high {game.hasAnyBid ? game.bid : '—'}</span>
-                <span>
-                  Turn: {at(game.currentTurn).name}
-                  {yourTurn ? ' (you)' : ''}
-                </span>
-              </div>
-              <div className="mb-4 max-h-28 overflow-auto text-xs text-[color:var(--color-muted)]">
-                {game.bidLog.map((b, i) => (
-                  <div key={i}>
-                    {at(b.seat).name} {b.kind === 'pass' ? 'passed' : `bid ${b.amount}`}
-                  </div>
-                ))}
-              </div>
-              {yourTurn ? (
-                <div className="flex flex-wrap gap-2">
-                  {raises.map((n) => (
-                    <button
-                      key={n}
-                      className="rounded-full bg-[color:var(--color-gold)] px-4 py-2 text-sm font-semibold text-black"
-                      onClick={() => placeBid(n)}
-                    >
-                      {game.hasAnyBid ? `Raise ${n}` : `Bid ${n}`}
-                    </button>
-                  ))}
-                  <button
-                    className="rounded-full border border-white/20 px-4 py-2 text-sm"
-                    onClick={passBid}
-                  >
-                    Pass
-                  </button>
-                  <span className="self-center text-xs text-[color:var(--color-muted)]">
-                    Min 100 · max 500 · you may re-enter after passing
-                  </span>
-                </div>
-              ) : (
-                <p className="text-sm text-[color:var(--color-muted)]">Dummy players are bidding…</p>
-              )}
-            </div>
-          )}
-
-          {game.phase === 'selecting' && bidder?.isHuman && (
-            <SelectionPanel
-              need={need}
-              copies={(rank, suit) => copiesInDeck(game.activeDeck, rank, suit)}
-              onConfirm={(cut, conditions) => confirmSelection(cut, conditions)}
-            />
-          )}
-          {game.phase === 'selecting' && bidder && !bidder.isHuman && (
-            <p className="text-sm text-[color:var(--color-muted)]">
-              {bidder.name} is choosing trump and {need} partner condition{need > 1 ? 's' : ''}…
-            </p>
-          )}
-        </div>
-      )}
-
       {game.phase === 'complete' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-[min(520px,96vw)] rounded-3xl border border-[color:var(--color-gold)]/40 bg-[#0b241c] p-8 rise">
@@ -235,9 +235,24 @@ export function GameTable() {
                 {game.players.map((p) => (
                   <tr key={p.id} className="border-t border-white/10">
                     <td className="py-2">
-                      {p.name}
-                      {p.seat === game.bidderSeat ? ' (bidder)' : ''}
-                      {game.partnerSeats.includes(p.seat) ? ' (partner)' : ''}
+                      <span
+                        className={
+                          p.seat === game.bidderSeat
+                            ? 'text-amber-300'
+                            : game.partnerSeats.includes(p.seat)
+                              ? 'text-sky-300'
+                              : ''
+                        }
+                      >
+                        {p.name}
+                        {p.seat === game.bidderSeat ? ' (bidder)' : ''}
+                        {game.partnerSeats.includes(p.seat) && p.seat !== game.bidderSeat
+                          ? ' (partner)'
+                          : ''}
+                        {game.partnerSeats.includes(p.seat) && p.seat === game.bidderSeat
+                          ? ' (self-partner)'
+                          : ''}
+                      </span>
                     </td>
                     <td className="py-2 text-right text-[color:var(--color-muted)]">{p.pointsWon} pts</td>
                     <td className={`py-2 text-right ${p.scoreDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -258,11 +273,107 @@ export function GameTable() {
         </div>
       )}
 
+      {showCall && game.trump && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-[min(480px,96vw)] rounded-3xl border border-[color:var(--color-gold)]/40 bg-[#0b241c] p-8 text-center rise">
+            <p className="text-sm tracking-[0.25em] text-[color:var(--color-muted)]">LOCKED IN</p>
+            <h2 className="font-display mt-2 text-4xl text-[color:var(--color-gold)]">
+              Cut {SUIT_SYMBOL[game.trump]} {SUIT_NAME[game.trump]}
+            </h2>
+            <p className="mt-2 text-lg text-[color:var(--color-muted)]">
+              {bidder?.name} at {game.bid}
+            </p>
+            <div className="mt-5 space-y-2">
+              <p className="text-sm uppercase tracking-widest text-[color:var(--color-muted)]">
+                Partner conditions
+              </p>
+              {game.conditions.map((c) => (
+                <div key={conditionLabel(c)} className="text-2xl font-semibold">
+                  {conditionLabel(c)}
+                </div>
+              ))}
+            </div>
+            <button
+              className="mt-6 w-full rounded-xl bg-[color:var(--color-gold)] py-3 font-semibold text-black"
+              onClick={() => setShowCall(false)}
+            >
+              Got it
+            </button>
+            <p className="mt-2 text-xs text-[color:var(--color-muted)]">Closes in a few seconds</p>
+          </div>
+        </div>
+      )}
+
+      {game.phase !== 'playing' && game.phase !== 'complete' && (
+        <div className="fixed right-4 top-20 z-40 w-[13.75rem] rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm">
+          {game.phase === 'bidding' && (
+            <div className="space-y-2">
+              <div className="mb-1 text-[color:var(--color-muted)]">Bidding</div>
+              <div>
+                <div className="font-medium">High {game.hasAnyBid ? game.bid : '—'}</div>
+                <div className="text-xs text-[color:var(--color-muted)]">
+                  {at(game.currentTurn).name}
+                  {yourTurn ? ' (you)' : ''}
+                </div>
+              </div>
+              <div className="max-h-20 overflow-auto text-xs leading-4 text-[color:var(--color-muted)]">
+                {game.bidLog.map((b, i) => (
+                  <div key={i}>
+                    {at(b.seat).name} {b.kind === 'pass' ? 'pass' : b.amount}
+                  </div>
+                ))}
+              </div>
+              {yourTurn ? (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {raises.map((n) => (
+                    <button
+                      key={n}
+                      className="rounded-lg bg-[color:var(--color-gold)] px-2 py-1.5 text-xs font-semibold text-black"
+                      onClick={() => placeBid(n)}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <button
+                    className="col-span-2 rounded-lg border border-white/20 px-2 py-1.5 text-xs"
+                    onClick={passBid}
+                  >
+                    Pass
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-[color:var(--color-muted)]">Waiting…</p>
+              )}
+            </div>
+          )}
+
+          {game.phase === 'selecting' && bidder?.isHuman && (
+            <SelectionPanel
+              need={need}
+              copies={(rank, suit) => copiesInDeck(game.activeDeck, rank, suit)}
+              onConfirm={(cut, conditions) => confirmSelection(cut, conditions)}
+            />
+          )}
+          {game.phase === 'selecting' && bidder && !bidder.isHuman && (
+            <p className="text-xs text-[color:var(--color-muted)]">
+              {bidder.name} is choosing trump…
+            </p>
+          )}
+        </div>
+      )}
+
       {game.phase === 'playing' && game.conditions.length > 0 && (
-        <div className="pointer-events-none fixed bottom-28 left-4 z-40 rounded-2xl border border-white/10 bg-black/50 px-3 py-2 text-xs">
+        <div className="pointer-events-none fixed right-4 top-20 z-40 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm">
           <div className="mb-1 text-[color:var(--color-muted)]">Partner conditions</div>
           {game.conditions.map((c) => (
-            <div key={conditionLabel(c)}>{conditionLabel(c)}</div>
+            <div key={conditionLabel(c)} className="flex items-center gap-2">
+              <span>{c.nth === 1 ? '1st' : '2nd'}</span>
+              <span>
+                {c.rank}
+                {SUIT_SYMBOL[c.suit]}
+              </span>
+              <span>{SUIT_NAME[c.suit]}</span>
+            </div>
           ))}
         </div>
       )}
@@ -312,25 +423,27 @@ function SelectionPanel({
   }
   return (
     <div>
-      <p className="mb-3 text-sm">You won the bid. Choose a cut suit and {need} partner condition{need > 1 ? 's' : ''}.</p>
-      <div className="mb-4 flex gap-2">
+      <p className="mb-2 text-[0.7rem] leading-4 text-[color:var(--color-muted)]">
+        Cut and {need} partner{need > 1 ? 's' : ''}
+      </p>
+      <div className="mb-2 grid grid-cols-4 gap-1">
         {SUITS.map((s) => (
           <button
             key={s}
             onClick={() => setTrump(s)}
-            className={`rounded-full px-4 py-2 ${
+            className={`rounded-md px-1 py-1 text-xs ${
               trump === s ? 'bg-[color:var(--color-gold)] text-black' : 'border border-white/15'
             }`}
           >
-            {SUIT_SYMBOL[s]} {SUIT_NAME[s]}
+            {SUIT_SYMBOL[s]}
           </button>
         ))}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {rows.map((row, i) => (
-          <div key={i} className="flex flex-wrap gap-2">
+          <div key={i} className="flex gap-1">
             <select
-              className="rounded-lg bg-zinc-900 px-2 py-2"
+              className="w-[3.2rem] rounded-md bg-zinc-900 px-1 py-1 text-[0.7rem]"
               value={row.nth}
               onChange={(e) => {
                 const next = [...rows]
@@ -342,7 +455,7 @@ function SelectionPanel({
               <option value={2}>2nd</option>
             </select>
             <select
-              className="rounded-lg bg-zinc-900 px-2 py-2"
+              className="min-w-0 flex-1 rounded-md bg-zinc-900 px-1 py-1 text-[0.7rem]"
               value={row.rank}
               onChange={(e) => {
                 const next = [...rows]
@@ -357,7 +470,7 @@ function SelectionPanel({
               ))}
             </select>
             <select
-              className="rounded-lg bg-zinc-900 px-2 py-2"
+              className="w-10 rounded-md bg-zinc-900 px-1 py-1 text-[0.7rem]"
               value={row.suit}
               onChange={(e) => {
                 const next = [...rows]
@@ -371,18 +484,15 @@ function SelectionPanel({
                 </option>
               ))}
             </select>
-            <span className="self-center text-xs text-[color:var(--color-muted)]">
-              {copies(row.rank, row.suit)} in deck
-            </span>
           </div>
         ))}
       </div>
-      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-[0.7rem] text-red-400">{error}</p>}
       <button
-        className="mt-4 rounded-xl bg-[color:var(--color-gold)] px-5 py-2 font-semibold text-black"
+        className="mt-2 w-full rounded-lg bg-[color:var(--color-gold)] px-2 py-1.5 text-xs font-semibold text-black"
         onClick={lock}
       >
-        Lock trump & partners
+        Lock
       </button>
     </div>
   )

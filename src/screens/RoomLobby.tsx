@@ -1,6 +1,7 @@
 import {
   Archive,
   ArrowLeft,
+  BarChart3,
   Crown,
   History,
   Play,
@@ -24,6 +25,7 @@ export function RoomLobby() {
     kick,
     transferOwner,
     archiveRoom,
+    leaveRoom,
   } = useApp()
 
   if (!user) return null
@@ -57,7 +59,7 @@ export function RoomLobby() {
             {user.email ? ` · ${user.email}` : ''}
           </p>
           <p className="mt-1 text-sm tracking-[0.25em] text-[color:var(--color-muted)]">
-            CODE {activeRoom.code} · MAX 8 · PERSISTENT
+            CODE {activeRoom.code} · MAX 8 
           </p>
         </div>
         <div className="flex gap-2">
@@ -104,14 +106,16 @@ export function RoomLobby() {
                       {m.online ? 'Online' : 'Offline'} · {m.ready ? 'Ready' : 'Not ready'}
                     </div>
                   </div>
-                  {isOwner && m.id !== 'you' && (
+                  {isOwner && m.id.toLowerCase() !== user.id.toLowerCase() && (
                     <div className="flex gap-2">
-                      <button
-                        className="text-xs text-[color:var(--color-muted)] hover:text-white"
-                        onClick={() => transferOwner(m.id)}
-                      >
-                        Transfer
-                      </button>
+                      {!m.isBot && (
+                        <button
+                          className="text-xs text-[color:var(--color-muted)] hover:text-white"
+                          onClick={() => transferOwner(m.id)}
+                        >
+                          Transfer
+                        </button>
+                      )}
                       <button
                         className="text-xs text-[color:var(--color-danger)]"
                         onClick={() => kick(m.id)}
@@ -136,7 +140,7 @@ export function RoomLobby() {
             >
               {you?.ready ? 'Ready' : 'Click to ready up'}
             </button>
-            {n < 6 && (
+            {isOwner && n < 6 && (
               <button
                 onClick={fillBots}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 py-3"
@@ -170,6 +174,12 @@ export function RoomLobby() {
                 <Archive className="h-4 w-4" /> Archive room
               </button>
             )}
+            <button
+              onClick={leaveRoom}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 py-3 text-sm text-[color:var(--color-muted)]"
+            >
+              Leave room
+            </button>
           </div>
         </div>
       )}
@@ -255,8 +265,74 @@ export function RoomLobby() {
               ))}
             </ol>
           </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-6 md:col-span-2">
+            <h3 className="mb-5 flex items-center gap-2 font-medium">
+              <BarChart3 className="h-4 w-4 text-[color:var(--color-gold)]" /> Points histogram
+            </h3>
+            {activeRoom.stats.leaderboard.length === 0 ? (
+              <p className="text-sm text-[color:var(--color-muted)]">
+                Finish a hand to see points by player.
+              </p>
+            ) : (
+              <PointsHistogram rows={activeRoom.stats.leaderboard} />
+            )}
+          </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function PointsHistogram({ rows }: { rows: { name: string; score: number }[] }) {
+  const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.score)))
+  const hasNeg = rows.some((r) => r.score < 0)
+  return (
+    <div className={`flex items-stretch gap-3 ${hasNeg ? 'h-64' : 'h-52'}`}>
+      {rows.map((row) => {
+        const pct = Math.max(6, (Math.abs(row.score) / maxAbs) * 100)
+        const positive = row.score >= 0
+        return (
+          <div key={row.name} className="flex min-w-0 flex-1 flex-col items-center">
+            <div className="text-xs font-semibold text-[color:var(--color-gold)]">
+              {row.score > 0 ? '+' : ''}
+              {row.score}
+            </div>
+            <div className={`mt-2 flex w-full flex-1 ${hasNeg ? 'flex-col' : 'flex-col justify-end'}`}>
+              {hasNeg ? (
+                <>
+                  <div className="flex h-1/2 items-end justify-center">
+                    {positive && (
+                      <div
+                        className="w-[70%] max-w-[3.5rem] rounded-t-md bg-[color:var(--color-gold)]"
+                        style={{ height: `${pct}%` }}
+                      />
+                    )}
+                  </div>
+                  <div className="h-px w-full bg-white/20" />
+                  <div className="flex h-1/2 items-start justify-center">
+                    {!positive && row.score !== 0 && (
+                      <div
+                        className="w-[70%] max-w-[3.5rem] rounded-b-md bg-[color:var(--color-danger)]"
+                        style={{ height: `${pct}%` }}
+                      />
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex h-full items-end justify-center">
+                  <div
+                    className="w-[70%] max-w-[3.5rem] rounded-t-md bg-[color:var(--color-gold)]"
+                    style={{ height: `${pct}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="mt-2 w-full truncate text-center text-xs text-[color:var(--color-muted)]" title={row.name}>
+              {row.name}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

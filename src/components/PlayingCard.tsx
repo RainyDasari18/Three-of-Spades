@@ -1,5 +1,5 @@
 import type { Card } from '../types'
-import { RANK_VALUE, SUIT_SYMBOL, cardPoints, isRed } from '../lib/cards'
+import { SUIT_SYMBOL, cardPoints, isRed } from '../lib/cards'
 
 interface Props {
   card?: Card
@@ -7,7 +7,7 @@ interface Props {
   selected?: boolean
   playable?: boolean
   dimmed?: boolean
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   onClick?: () => void
   title?: string
 }
@@ -16,6 +16,14 @@ const sizes = {
   sm: 'w-10 h-[3.6rem] text-[0.65rem]',
   md: 'w-[4.4rem] h-[6.2rem] text-sm',
   lg: 'w-[5.2rem] h-[7.4rem] text-base',
+  xl: 'w-[5.4rem] h-[7.65rem] text-lg',
+}
+
+const pip = {
+  sm: 'text-2xl',
+  md: 'text-3xl',
+  lg: 'text-4xl',
+  xl: 'text-5xl',
 }
 
 export function PlayingCard({
@@ -40,7 +48,6 @@ export function PlayingCard({
 
   const red = isRed(card.suit)
   const pts = cardPoints(card)
-  const aceHigh = RANK_VALUE[card.rank] >= 11
   const threeSpades = card.rank === '3' && card.suit === 'S'
   const className = [
     classBase,
@@ -58,11 +65,11 @@ export function PlayingCard({
         {card.rank}
         <span className="ml-0.5">{SUIT_SYMBOL[card.suit]}</span>
       </div>
-      <div className={`absolute inset-0 flex items-center justify-center ${aceHigh ? 'text-3xl' : 'text-2xl'}`}>
+      <div className={`absolute inset-0 flex items-center justify-center ${pip[size]}`}>
         {SUIT_SYMBOL[card.suit]}
       </div>
       {pts > 0 && (
-        <div className="absolute bottom-1 right-1 rounded bg-black/10 px-1 text-[0.6rem] font-semibold text-neutral-700">
+        <div className={`absolute bottom-1 right-1 rounded bg-black/10 px-1 font-semibold text-neutral-700 ${size === 'xl' ? 'text-xs' : 'text-[0.6rem]'}`}>
           {pts}
         </div>
       )}

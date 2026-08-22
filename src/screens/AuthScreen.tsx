@@ -20,8 +20,7 @@ export function AuthScreen() {
           Three of Spades
         </h1>
         <p className="mt-6 max-w-md text-lg text-[color:var(--color-muted)]">
-          Bid, name hidden partners, cut with trump, and chase 500 points. Your
-          username is what the table sees.
+          Bid, name hidden partners, cut with trump, and chase 500 points. Online with friends.
         </p>
         <div className="mt-10 flex gap-6 text-sm text-[color:var(--color-muted)]">
           <div>
@@ -45,6 +44,8 @@ export function AuthScreen() {
           e.preventDefault()
           setBusy(true)
           try {
+            if (!email.trim() || !password) return
+            if (mode === 'register' && name.trim().length < 2) return
             if (mode === 'login') await login(email, password)
             else await register(name, email, password)
           } finally {
@@ -58,7 +59,6 @@ export function AuthScreen() {
             <div className="font-display text-2xl">
               {mode === 'login' ? 'Welcome back' : 'Create account'}
             </div>
-            <div className="text-sm text-[color:var(--color-muted)]">JWT session · live server</div>
           </div>
         </div>
 
@@ -97,9 +97,6 @@ export function AuthScreen() {
         >
           {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Register'}
         </button>
-        <p className="mt-3 text-xs text-[color:var(--color-muted)]">
-          Use a different email in each tab. Username is what the table shows.
-        </p>
         <button
           type="button"
           className="mt-4 w-full text-sm text-[color:var(--color-muted)] hover:text-white"

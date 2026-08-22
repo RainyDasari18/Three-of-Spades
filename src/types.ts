@@ -38,6 +38,7 @@ export interface Player {
   seat: number
   isHuman: boolean
   isOwner: boolean
+  isBot?: boolean
   online: boolean
   ready: boolean
   hand: Card[]

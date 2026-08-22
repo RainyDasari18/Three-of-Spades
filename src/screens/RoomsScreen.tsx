@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Archive, LogOut, Plus, Spade, Users } from 'lucide-react'
+import { RulesButton } from '../components/RulesModal'
 import { useApp } from '../state/AppProvider'
 
 export function RoomsScreen() {
@@ -18,17 +19,20 @@ export function RoomsScreen() {
           <div>
             <h1 className="font-display text-4xl text-[color:var(--color-gold)]">Rooms</h1>
             <p className="text-sm text-[color:var(--color-muted)]">
-              This tab: <span className="text-white">{user?.name}</span>
+               <span className="text-white">{user?.name}</span>
               {user?.email ? ` · ${user.email}` : ''}
             </p>
           </div>
         </div>
-        <button
-          onClick={logout}
-          className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm hover:bg-white/5"
-        >
-          <LogOut className="h-4 w-4" /> Logout
-        </button>
+        <div className="flex items-center gap-2">
+          <RulesButton />
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm hover:bg-white/5"
+          >
+            <LogOut className="h-4 w-4" /> Logout
+          </button>
+        </div>
       </header>
 
       <div className="mb-8 grid gap-4 md:grid-cols-2">
@@ -88,7 +92,7 @@ export function RoomsScreen() {
               </span>
             </div>
             <p className="text-sm text-[color:var(--color-muted)]">
-              Persistent room · {room.history.length} games in history · Owner{' '}
+               {room.history.length} games in history · Owner{' '}
               {room.members.find((m) => m.id === room.ownerId)?.name}
             </p>
           </button>

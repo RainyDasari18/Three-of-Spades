@@ -2,6 +2,7 @@ export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5203'
 
 const TOKEN_KEY = 'tos.token'
 const SESSION_KEY = 'tos.sessionKey'
+const LOCATION_KEY = 'tos.location'
 const CHANNEL = 'tos-tab-auth'
 const TAB_INSTANCE = crypto.randomUUID()
 
@@ -11,6 +12,20 @@ try {
   localStorage.removeItem(TOKEN_KEY)
 } catch {
   /* ignore */
+}
+
+try {
+  memoryToken = sessionStorage.getItem(TOKEN_KEY)
+} catch {
+  /* ignore */
+}
+
+export function peekStoredToken() {
+  try {
+    return memoryToken ?? sessionStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
 }
 
 function getSessionKey() {
@@ -24,6 +39,11 @@ function getSessionKey() {
 
 /** If this tab was duplicated, sessionStorage (and the JWT) is copied. Drop that copy. */
 export function isolateTabSession(): Promise<void> {
+  try {
+    memoryToken = sessionStorage.getItem(TOKEN_KEY)
+  } catch {
+    /* ignore */
+  }
   return new Promise((resolve) => {
     const sessionKey = getSessionKey()
     let duplicated = false
@@ -41,17 +61,27 @@ export function isolateTabSession(): Promise<void> {
       bc.postMessage({ type: 'ping', sessionKey, instanceId: TAB_INSTANCE })
       window.setTimeout(() => {
         bc.removeEventListener('message', onMessage)
+        bc.close()
         if (duplicated) {
           sessionStorage.removeItem(TOKEN_KEY)
+          sessionStorage.removeItem(LOCATION_KEY)
           sessionStorage.setItem(SESSION_KEY, crypto.randomUUID())
           memoryToken = null
         } else {
-          memoryToken = sessionStorage.getItem(TOKEN_KEY)
+          try {
+            memoryToken = sessionStorage.getItem(TOKEN_KEY)
+          } catch {
+            /* ignore */
+          }
         }
         resolve()
-      }, 120)
+      }, 50)
     } catch {
-      memoryToken = sessionStorage.getItem(TOKEN_KEY)
+      try {
+        memoryToken = sessionStorage.getItem(TOKEN_KEY)
+      } catch {
+        /* ignore */
+      }
       resolve()
     }
   })
@@ -64,9 +94,33 @@ export function getToken() {
 export function setToken(token: string | null) {
   memoryToken = token
   if (token) sessionStorage.setItem(TOKEN_KEY, token)
-  else sessionStorage.removeItem(TOKEN_KEY)
+  else {
+    sessionStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(LOCATION_KEY)
+  }
   try {
     localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getStoredLocation(): { roomId: string } | null {
+  try {
+    const raw = sessionStorage.getItem(LOCATION_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { roomId?: string }
+    if (!parsed?.roomId) return null
+    return { roomId: parsed.roomId }
+  } catch {
+    return null
+  }
+}
+
+export function setStoredLocation(roomId: string | null) {
+  try {
+    if (roomId) sessionStorage.setItem(LOCATION_KEY, JSON.stringify({ roomId }))
+    else sessionStorage.removeItem(LOCATION_KEY)
   } catch {
     /* ignore */
   }
@@ -88,7 +142,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { ...init, headers, cache: 'no-store' })
   if (res.status === 204) return undefined as T
   const text = await res.text()
-  const data = text ? (JSON.parse(text) as Record<string, unknown>) : {}
+  let data: Record<string, unknown> = {}
+  if (text) {
+    try {
+      data = JSON.parse(text) as Record<string, unknown>
+    } catch {
+      if (!res.ok) throw new ApiError(res.status, text || res.statusText)
+      throw new ApiError(res.status || 500, 'Unexpected response from server.')
+    }
+  }
   if (!res.ok) {
     const message =
       (typeof data.error === 'string' && data.error) ||
@@ -187,4 +249,5 @@ export interface ApiSnapshot {
   playable: ApiCard[]
   cancelReason: string | null
   ruleVersion: string
+  turnEndsAt?: string | null
 }

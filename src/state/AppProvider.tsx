@@ -14,6 +14,9 @@ import {
   api,
   getToken,
   isolateTabSession,
+  peekStoredToken,
+  getStoredLocation,
+  setStoredLocation,
   setToken,
   type ApiRoom,
   type ApiSnapshot,
@@ -55,10 +58,12 @@ export interface LiveGame {
   activeDeck: Card[]
   playable: Card[]
   cancelReason: string | null
+  turnEndsAt: string | null
 }
 
 interface AppContextValue {
   user: User | null
+  booting: boolean
   view: View
   rooms: Room[]
   activeRoom: Room | null
@@ -80,6 +85,7 @@ interface AppContextValue {
   kick: (playerId: string) => Promise<void>
   transferOwner: (playerId: string) => Promise<void>
   archiveRoom: () => Promise<void>
+  leaveRoom: () => Promise<void>
   placeBid: (amount: number) => Promise<void>
   passBid: () => Promise<void>
   confirmSelection: (trump: Suit, conditions: PartnerCondition[]) => Promise<void>
@@ -106,6 +112,7 @@ function mapRoom(dto: ApiRoom, userId: string): Room {
       seat: i,
       isHuman: m.id.toLowerCase() === userId.toLowerCase(),
       isOwner: m.isOwner,
+      isBot: m.isBot,
       online: m.online,
       ready: m.ready,
       hand: [],
@@ -170,6 +177,7 @@ function mapGame(snap: ApiSnapshot, userId: string): LiveGame {
     activeDeck: buildActiveDeck(snap.players.length),
     playable: (snap.playable ?? []).map(card),
     cancelReason: snap.cancelReason,
+    turnEndsAt: snap.turnEndsAt ?? null,
     players: [...(snap.players ?? [])]
       .sort((a, b) => a.seat - b.seat)
       .map((p) => {
@@ -201,6 +209,7 @@ function userFromAuth(a: AuthPayload): User {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [booting, setBooting] = useState(() => Boolean(peekStoredToken()))
   const [view, setView] = useState<View>('auth')
   const [rooms, setRooms] = useState<Room[]>([])
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null)
@@ -214,6 +223,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const roomIdRef = useRef<string | null>(null)
   userRef.current = user
   roomIdRef.current = activeRoomId
+
+  useEffect(() => {
+    if (booting) return
+    if (activeRoomId && (view === 'room' || view === 'game')) setStoredLocation(activeRoomId)
+    else setStoredLocation(null)
+  }, [booting, activeRoomId, view])
 
   const activeRoom = rooms.find((r) => r.id === activeRoomId) ?? null
 
@@ -282,10 +297,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .build()
       conn.on('gameUpdated', (snap: ApiSnapshot) => applySnapshot(snap))
       conn.on('notice', (text: string) => pushToast(text))
+      conn.on('kickedFromRoom', (roomId: string) => {
+        pushToast('You were removed from the room.', 'danger')
+        if (roomIdRef.current === roomId) {
+          setGame(null)
+          setActiveRoomId(null)
+          setView('rooms')
+        }
+        setRooms((prev) => prev.filter((r) => r.id !== roomId))
+      })
       conn.on('roomUpdated', (dto: ApiRoom) => {
         const me = userRef.current
         if (!me) return
         const mapped = mapRoom(dto, me.id)
+        if (mapped.archived && roomIdRef.current === mapped.id) {
+          setGame(null)
+          setActiveRoomId(null)
+          setView('rooms')
+          pushToast('Room was archived.', 'info')
+        }
         setRooms((prev) => {
           const rest = prev.filter((r) => r.id !== mapped.id)
           return [mapped, ...rest]
@@ -302,11 +332,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setToken(auth.token)
       setUser(userFromAuth(auth))
       setAuthError('')
-      await connectHub(auth.token)
+      try {
+        await connectHub(auth.token)
+      } catch {
+        /* rooms still load over HTTP */
+      }
       await refreshRooms()
-      setView('rooms')
+      const loc = getStoredLocation()
+      if (loc?.roomId) {
+        try {
+          const dto = await refreshRoom(loc.roomId)
+          setActiveRoomId(loc.roomId)
+          setRoomTab('lobby')
+          setView('room')
+          if (dto.activeGameId) {
+            try {
+              const snap = await api<ApiSnapshot>(`/api/rooms/${loc.roomId}/game`)
+              const phase = String(snap.phase ?? '').toLowerCase()
+              if (phase !== 'complete' && phase !== 'cancelled') applySnapshot(snap)
+            } catch {
+              /* hand already finished */
+            }
+          }
+        } catch {
+          setStoredLocation(null)
+          setView('rooms')
+        }
+      } else {
+        setView('rooms')
+      }
+      setBooting(false)
     },
-    [connectHub, refreshRooms],
+    [applySnapshot, connectHub, refreshRoom, refreshRooms],
   )
 
   useEffect(() => {
@@ -316,12 +373,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       try {
         const token = getToken()
-        if (!token) return
+        if (!token) {
+          setBooting(false)
+          return
+        }
         const me = await api<AuthPayload>('/api/auth/me')
         if (cancelled) return
         await enterSession({ ...me, token: me.token || token })
       } catch {
+        if (cancelled) return
         setToken(null)
+        setUser(null)
+        setView('auth')
+        setBooting(false)
       }
     }
     void boot()
@@ -341,22 +405,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(tick)
   }, [view, activeRoomId, refreshRoom])
 
-  const waitingOnOthers = Boolean(
-    view === 'game' &&
-      game &&
-      (() => {
-        const me = game.players.find((p) => p.isHuman)
-        if (!me) return false
-        return (
-          (game.phase === 'bidding' && game.currentTurn !== me.seat) ||
-          (game.phase === 'selecting' && game.bidderSeat !== me.seat) ||
-          (game.phase === 'playing' && game.currentTurn !== me.seat)
-        )
-      })(),
-  )
-
   useEffect(() => {
-    if (!waitingOnOthers || !activeRoomId) return
+    if (view !== 'game' || !activeRoomId) return
     let cancelled = false
     const poll = async () => {
       try {
@@ -372,7 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       cancelled = true
       window.clearInterval(tick)
     }
-  }, [waitingOnOthers, activeRoomId, applySnapshot])
+  }, [view, activeRoomId, applySnapshot])
 
   const login = async (email: string, password: string) => {
     try {
@@ -428,10 +478,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const joinRoom = async (code: string) => {
+    const trimmed = code.trim()
+    if (!trimmed) {
+      pushToast('Enter a room code.', 'danger')
+      return
+    }
     try {
       const dto = await api<ApiRoom>('/api/rooms/join', {
         method: 'POST',
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code: trimmed }),
       })
       const me = userRef.current
       if (!me) return
@@ -571,6 +626,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const leaveRoom = async () => {
+    if (!activeRoomId) return
+    if (game && game.phase !== 'complete' && game.phase !== 'cancelled') {
+      pushToast('You cannot leave while a game is active.', 'danger')
+      return
+    }
+    try {
+      await api(`/api/rooms/${activeRoomId}/leave`, { method: 'POST' })
+      setActiveRoomId(null)
+      setGame(null)
+      setView('rooms')
+      await refreshRooms()
+      pushToast('You left the room.', 'info')
+    } catch (e) {
+      fail(e)
+    }
+  }
+
   const invokeGame = async (method: string, ...args: unknown[]) => {
     const roomId = game?.roomId ?? activeRoomId
     if (!roomId) return
@@ -614,6 +687,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppContextValue>(
     () => ({
       user,
+      booting,
       view,
       rooms,
       activeRoom,
@@ -635,13 +709,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       kick,
       transferOwner,
       archiveRoom,
+      leaveRoom,
       placeBid,
       passBid,
       confirmSelection,
       playCard,
       finishToLobby,
     }),
-    [user, view, rooms, activeRoom, roomTab, game, toasts, authError],
+    [user, booting, view, rooms, activeRoom, roomTab, game, toasts, authError],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
