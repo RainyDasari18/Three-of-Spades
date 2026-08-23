@@ -13,10 +13,10 @@ interface Props {
 }
 
 const sizes = {
-  sm: 'w-10 h-[3.6rem] text-[0.65rem]',
-  md: 'w-[4.4rem] h-[6.2rem] text-sm',
-  lg: 'w-[5.2rem] h-[7.4rem] text-base',
-  xl: 'w-[5.4rem] h-[7.65rem] text-lg',
+  sm: 'w-8 h-[2.9rem] text-[0.6rem] md:w-10 md:h-[3.6rem] md:text-[0.65rem]',
+  md: 'w-[3.6rem] h-[5.1rem] text-xs md:w-[4.4rem] md:h-[6.2rem] md:text-sm',
+  lg: 'w-[4.2rem] h-[6rem] text-sm md:w-[5.2rem] md:h-[7.4rem] md:text-base',
+  xl: 'w-[3.8rem] h-[5.4rem] text-sm md:w-[5.4rem] md:h-[7.65rem] md:text-lg',
 }
 
 const pip = {
@@ -55,7 +55,7 @@ export function PlayingCard({
     red ? 'text-red-600' : 'text-neutral-900',
     threeSpades ? 'ring-2 ring-amber-400' : '',
     selected ? 'ring-2 ring-emerald-400 -translate-y-3' : '',
-    playable ? 'cursor-pointer' : '',
+    playable ? 'cursor-pointer touch-manipulation' : '',
     dimmed ? 'opacity-35 grayscale' : '',
   ].join(' ')
 

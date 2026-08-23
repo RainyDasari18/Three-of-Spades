@@ -70,6 +70,28 @@ body {
   margin-right: 0.4rem;
 }
 
+@media (max-width: 767px) {
+  .hand-fan {
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+  }
+  .hand-fan > * {
+    margin-left: -1.05rem;
+    flex: 0 0 auto;
+  }
+  .hand-fan > button:hover,
+  .hand-fan > button:focus-visible {
+    transform: translateY(-10px);
+    margin-right: 0;
+  }
+}
+
+button {
+  touch-action: manipulation;
+}
+
 .card-face {
   border-radius: 0.7rem;
   background: linear-gradient(180deg, #fffdf8 0%, #f3ead6 100%);

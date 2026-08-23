@@ -53,7 +53,7 @@ export function RoomLobby() {
 
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-5xl text-[color:var(--color-gold)]">{activeRoom.name}</h1>
+          <h1 className="font-display text-3xl text-[color:var(--color-gold)] sm:text-5xl">{activeRoom.name}</h1>
           <p className="mt-1 text-sm text-[color:var(--color-muted)]">
             Playing as {user.name}
             {user.email ? ` · ${user.email}` : ''}
@@ -185,7 +185,7 @@ export function RoomLobby() {
       )}
 
       {roomTab === 'history' && (
-        <div className="overflow-hidden rounded-3xl border border-white/10">
+        <div className="overflow-x-auto rounded-3xl border border-white/10">
           <div className="flex items-center gap-2 border-b border-white/10 px-5 py-3 text-sm">
             <History className="h-4 w-4" /> Completed games
           </div>

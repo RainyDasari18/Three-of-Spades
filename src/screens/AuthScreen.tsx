@@ -11,7 +11,13 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false)
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl items-center gap-16 px-6 py-12">
+    <div className="mx-auto flex min-h-screen max-w-6xl flex-col items-center gap-8 px-4 py-8 md:flex-row md:items-center md:gap-16 md:px-6 md:py-12">
+      <div className="w-full md:hidden">
+        <p className="text-xs tracking-[0.3em] uppercase text-[color:var(--color-gold)]">
+          Trick-taking · Hidden partners
+        </p>
+        <h1 className="font-display mt-2 text-4xl text-[color:var(--color-gold)]">Three of Spades</h1>
+      </div>
       <div className="hidden flex-1 md:block">
         <p className="text-sm tracking-[0.3em] text-gold-dim uppercase text-[color:var(--color-gold)]">
           Trick-taking · Hidden partners

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Clock, Crown, Spade } from 'lucide-react'
-import type { PartnerCondition, Rank, Suit } from '../types'
+import type { Card, PartnerCondition, Rank, Suit } from '../types'
 import {
   SUIT_NAME,
   SUIT_SYMBOL,
@@ -10,11 +10,25 @@ import {
   isRed,
   legalCards,
   partnerConditionCount,
+  trickWinner,
 } from '../lib/cards'
 import { PlayingCard } from '../components/PlayingCard'
 import { useApp } from '../state/AppProvider'
 
 const RANK_PICK: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']
+
+function useNarrow() {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const onChange = () => setNarrow(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return narrow
+}
 
 function seatStyle(indexFromHuman: number, total: number): CSSProperties {
   if (indexFromHuman === 0) {
@@ -35,6 +49,10 @@ export function GameTable() {
   const prevPhase = useRef<string | null>(null)
   const [showCall, setShowCall] = useState(false)
   const [secsLeft, setSecsLeft] = useState<number | null>(null)
+  const [heldTrick, setHeldTrick] = useState<{ seat: number; card: Card }[]>([])
+  const [holdingTrick, setHoldingTrick] = useState(false)
+  const heldKey = useRef('')
+  const narrow = useNarrow()
 
   const order = useMemo(() => {
     if (!game) return []
@@ -69,16 +87,35 @@ export function GameTable() {
     return () => window.clearInterval(id)
   }, [game?.turnEndsAt, game?.phase])
 
+  useEffect(() => {
+    if (!game) return
+    const n = game.players.length
+    const key = game.currentTrick.map((p) => p.card.id).join('|')
+    if (game.currentTrick.length === n && n > 0 && key !== heldKey.current) {
+      heldKey.current = key
+      setHeldTrick(game.currentTrick)
+      setHoldingTrick(true)
+      const t = window.setTimeout(() => setHoldingTrick(false), 3000)
+      return () => window.clearTimeout(t)
+    }
+  }, [game, game?.currentTrick, game?.players.length])
+
   if (!game) return null
 
   const at = (seat: number) => game.players.find((p) => p.seat === seat) ?? game.players[seat]
+  const pile = holdingTrick && heldTrick.length > 0 ? heldTrick : game.currentTrick
+  const trickTaken = pile.length === game.players.length && pile.length > 0
+  const winnerSeat =
+    trickTaken && game.trump ? trickWinner(pile, game.trump, pile[0].card.suit) : null
+  const takenBy = winnerSeat != null ? at(winnerSeat).name : null
+  const showScores = game.phase === 'complete' && !holdingTrick
   const human = at(humanSeat)
   const bidder = game.bidderSeat != null ? at(game.bidderSeat) : null
   const yourTurn = Number(game.currentTurn) === Number(humanSeat)
   const serverIds = new Set(game.playable.map((c) => c.id).filter(Boolean))
   const fromServer = human.hand.filter((c) => serverIds.has(c.id))
   const legal =
-    game.phase === 'playing' && yourTurn
+    game.phase === 'playing' && yourTurn && !holdingTrick
       ? fromServer.length
         ? fromServer
         : legalCards(human.hand, game.leadSuit)
@@ -90,13 +127,13 @@ export function GameTable() {
     : [100, 120, 140, 180, 220]
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between gap-4 px-5 py-3">
+    <div className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
+      <header className="flex shrink-0 items-start justify-between gap-2 px-3 py-2 md:items-center md:gap-4 md:px-5 md:py-3">
         <div className="flex items-center gap-2">
-          <Spade className="h-6 w-6 text-[color:var(--color-gold)]" fill="currentColor" />
-          <span className="font-display text-2xl">Three of Spades</span>
+          <Spade className="h-5 w-5 text-[color:var(--color-gold)] md:h-6 md:w-6" fill="currentColor" />
+          <span className="font-display text-lg md:text-2xl">Three of Spades</span>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-base text-[color:var(--color-muted)]">
+        <div className="flex max-w-[70%] flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[0.7rem] text-[color:var(--color-muted)] md:max-w-none md:gap-x-5 md:text-base">
           <span>Dealer {at(game.dealerSeat).name}</span>
           {game.hasAnyBid && (
             <span className="text-[color:var(--color-gold)]">Bid {game.bid}</span>
@@ -128,30 +165,64 @@ export function GameTable() {
 
       <div className="relative min-h-0 flex-1">
         <div className="relative mx-auto h-full w-full max-w-[1100px]">
-        <div className="felt-table absolute inset-0 rounded-[46%_/_42%] border border-[color:var(--color-gold)]/25" />
+        <div className="felt-table absolute inset-0 rounded-none border-0 md:rounded-[46%_/_42%] md:border md:border-[color:var(--color-gold)]/25" />
 
-        <div className="absolute left-1/2 top-[58%] z-10 w-[min(920px,94%)] -translate-x-1/2 -translate-y-1/2">
+        {narrow && (
+          <div className="absolute inset-x-0 top-0 z-20 flex gap-1 overflow-x-auto px-2 py-2">
+            {order
+              .filter((seat) => seat !== humanSeat)
+              .map((seat) => {
+                const p = at(seat)
+                const turn = Number(game.currentTurn) === Number(seat) && game.phase !== 'complete'
+                return (
+                  <div
+                    key={p.id}
+                    className={`shrink-0 rounded-full px-2 py-1 text-[0.65rem] ${
+                      game.bidderSeat === seat
+                        ? 'bg-amber-400 text-black'
+                        : game.partnerSeats.includes(seat)
+                          ? 'bg-sky-400 text-black'
+                          : turn
+                            ? 'bg-[color:var(--color-gold)] text-black'
+                            : 'bg-black/60'
+                    }`}
+                  >
+                    {p.name}
+                    {turn && secsLeft != null ? ` ${secsLeft}s` : ''}
+                    <span className="ml-1 opacity-70">{p.hand.length}</span>
+                  </div>
+                )
+              })}
+          </div>
+        )}
+
+        <div className={`absolute left-1/2 z-10 w-[min(920px,94%)] -translate-x-1/2 -translate-y-1/2 ${narrow ? 'top-[48%]' : 'top-[58%]'}`}>
           <div className="mb-3 text-center text-xs tracking-widest text-[color:var(--color-gold)]">
             {game.phase === 'bidding' && 'BIDDING'}
             {game.phase === 'selecting' && 'TRUMP & PARTNERS'}
             {game.phase === 'playing' && 'FOLLOW SUIT · HIDDEN POINTS'}
             {game.phase === 'complete' && 'HAND COMPLETE'}
           </div>
-          <div className="flex min-h-[11rem] flex-wrap items-center justify-center gap-3">
-            {game.currentTrick.length === 0 && game.phase === 'playing' && (
+          <div className="flex min-h-[7.5rem] flex-wrap items-center justify-center gap-2 md:min-h-[11rem] md:gap-3">
+            {pile.length === 0 && game.phase === 'playing' && (
               <p className="text-sm text-[color:var(--color-muted)]">
-                {yourTurn ? 'Your lead — click a card' : 'Waiting for lead'}
+                {yourTurn ? 'Your lead — tap a card' : 'Waiting for lead'}
               </p>
             )}
-            {game.currentTrick.map((p) => (
+            {pile.map((p) => (
               <div key={p.card.id} className="text-center">
-                <PlayingCard card={p.card} size="xl" />
-                <div className="mt-1 text-sm text-[color:var(--color-muted)]">
+                <PlayingCard card={p.card} size={narrow ? 'md' : 'xl'} />
+                <div className="mt-1 max-w-[4.5rem] truncate text-[0.65rem] text-[color:var(--color-muted)] md:max-w-none md:text-sm">
                   {at(p.seat).name}
                 </div>
               </div>
             ))}
           </div>
+          {takenBy && (
+            <p className="mt-1 text-center text-sm font-semibold text-[color:var(--color-gold)]">
+              {takenBy} takes the trick
+            </p>
+          )}
           {game.partnerSeats.length > 0 && (
             <div className="mt-2 text-center text-sm text-sky-300">
               Revealed:{' '}
@@ -161,7 +232,8 @@ export function GameTable() {
           )}
         </div>
 
-        {order.map((seat, i) => {
+        {!narrow &&
+        order.map((seat, i) => {
           const p = at(seat)
           const style = seatStyle(i, game.players.length)
           const turn = Number(game.currentTurn) === Number(seat) && game.phase !== 'complete'
@@ -204,7 +276,7 @@ export function GameTable() {
         </div>
       </div>
 
-      <div className="hand-fan relative z-30 shrink-0 px-4 pb-4">
+      <div className="hand-fan relative z-30 shrink-0 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-4 md:pb-4">
         {human.hand.map((card) => {
           const ok = game.phase === 'playing' && yourTurn && legalIds.has(card.id)
           const dimmed = game.phase === 'playing' && yourTurn && !ok
@@ -212,7 +284,7 @@ export function GameTable() {
             <PlayingCard
               key={card.id}
               card={card}
-              size="lg"
+              size={narrow ? 'md' : 'lg'}
               playable={ok}
               dimmed={dimmed}
               onClick={ok ? () => playCard(card.id) : undefined}
@@ -221,9 +293,9 @@ export function GameTable() {
         })}
       </div>
 
-      {game.phase === 'complete' && (
+      {showScores && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-[min(520px,96vw)] rounded-3xl border border-[color:var(--color-gold)]/40 bg-[#0b241c] p-8 rise">
+        <div className="max-h-[85dvh] w-[min(520px,96vw)] overflow-auto rounded-3xl border border-[color:var(--color-gold)]/40 bg-[#0b241c] p-6 rise md:p-8">
             <h2 className="font-display text-4xl text-[color:var(--color-gold)]">
               {game.success ? 'Bid made' : 'Bid failed'}
             </h2>
@@ -305,7 +377,7 @@ export function GameTable() {
       )}
 
       {game.phase !== 'playing' && game.phase !== 'complete' && (
-        <div className="fixed right-4 top-20 z-40 w-[13.75rem] rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm">
+        <div className="fixed inset-x-3 bottom-[5.5rem] z-40 max-h-[42vh] w-auto overflow-auto rounded-2xl border border-white/10 bg-black/70 px-4 py-3 text-sm md:inset-auto md:bottom-auto md:right-4 md:top-20 md:max-h-none md:w-[13.75rem] md:bg-black/50">
           {game.phase === 'bidding' && (
             <div className="space-y-2">
               <div className="mb-1 text-[color:var(--color-muted)]">Bidding</div>
@@ -363,7 +435,7 @@ export function GameTable() {
       )}
 
       {game.phase === 'playing' && game.conditions.length > 0 && (
-        <div className="pointer-events-none fixed right-4 top-20 z-40 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm">
+        <div className="pointer-events-none fixed inset-x-3 top-14 z-40 rounded-2xl border border-white/10 bg-black/70 px-3 py-2 text-xs md:inset-auto md:right-4 md:top-20 md:bg-black/50 md:px-4 md:py-3 md:text-sm">
           <div className="mb-1 text-[color:var(--color-muted)]">Partner conditions</div>
           {game.conditions.map((c) => (
             <div key={conditionLabel(c)} className="flex items-center gap-2">

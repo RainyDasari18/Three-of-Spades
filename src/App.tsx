@@ -8,7 +8,7 @@ import { AppProvider, useApp } from './state/AppProvider'
 function Toasts() {
   const { toasts } = useApp()
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-[60] space-y-2">
+    <div className="pointer-events-none fixed inset-x-3 top-3 z-[60] space-y-2 md:inset-x-auto md:right-4 md:top-4">
       {toasts.map((t) => (
         <div
           key={t.id}

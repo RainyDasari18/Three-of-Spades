@@ -13,7 +13,7 @@ export function RoomsScreen() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
-      <header className="mb-10 flex items-center justify-between">
+      <header className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Spade className="h-8 w-8 text-[color:var(--color-gold)]" fill="currentColor" />
           <div>
