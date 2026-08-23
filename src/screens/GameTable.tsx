@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Clock, Crown, Spade } from 'lucide-react'
-import type { Card, PartnerCondition, Rank, Suit } from '../types'
+import type { PartnerCondition, Rank, Suit } from '../types'
 import {
   SUIT_NAME,
   SUIT_SYMBOL,
@@ -49,9 +49,6 @@ export function GameTable() {
   const prevPhase = useRef<string | null>(null)
   const [showCall, setShowCall] = useState(false)
   const [secsLeft, setSecsLeft] = useState<number | null>(null)
-  const [heldTrick, setHeldTrick] = useState<{ seat: number; card: Card }[]>([])
-  const [holdingTrick, setHoldingTrick] = useState(false)
-  const heldKey = useRef('')
   const narrow = useNarrow()
 
   const order = useMemo(() => {
@@ -87,35 +84,22 @@ export function GameTable() {
     return () => window.clearInterval(id)
   }, [game?.turnEndsAt, game?.phase])
 
-  useEffect(() => {
-    if (!game) return
-    const n = game.players.length
-    const key = game.currentTrick.map((p) => p.card.id).join('|')
-    if (game.currentTrick.length === n && n > 0 && key !== heldKey.current) {
-      heldKey.current = key
-      setHeldTrick(game.currentTrick)
-      setHoldingTrick(true)
-      const t = window.setTimeout(() => setHoldingTrick(false), 3000)
-      return () => window.clearTimeout(t)
-    }
-  }, [game, game?.currentTrick, game?.players.length])
-
   if (!game) return null
 
   const at = (seat: number) => game.players.find((p) => p.seat === seat) ?? game.players[seat]
-  const pile = holdingTrick && heldTrick.length > 0 ? heldTrick : game.currentTrick
-  const trickTaken = pile.length === game.players.length && pile.length > 0
+  const pile = game.currentTrick
+  const trickLocked = pile.length === game.players.length && pile.length > 0
   const winnerSeat =
-    trickTaken && game.trump ? trickWinner(pile, game.trump, pile[0].card.suit) : null
+    trickLocked && game.trump ? trickWinner(pile, game.trump, pile[0].card.suit) : null
   const takenBy = winnerSeat != null ? at(winnerSeat).name : null
-  const showScores = game.phase === 'complete' && !holdingTrick
+  const showScores = game.phase === 'complete'
   const human = at(humanSeat)
   const bidder = game.bidderSeat != null ? at(game.bidderSeat) : null
-  const yourTurn = Number(game.currentTurn) === Number(humanSeat)
+  const yourTurn = Number(game.currentTurn) === Number(humanSeat) && !trickLocked
   const serverIds = new Set(game.playable.map((c) => c.id).filter(Boolean))
   const fromServer = human.hand.filter((c) => serverIds.has(c.id))
   const legal =
-    game.phase === 'playing' && yourTurn && !holdingTrick
+    game.phase === 'playing' && yourTurn
       ? fromServer.length
         ? fromServer
         : legalCards(human.hand, game.leadSuit)
@@ -173,7 +157,10 @@ export function GameTable() {
               .filter((seat) => seat !== humanSeat)
               .map((seat) => {
                 const p = at(seat)
-                const turn = Number(game.currentTurn) === Number(seat) && game.phase !== 'complete'
+                const turn =
+                  Number(game.currentTurn) === Number(seat) &&
+                  game.phase !== 'complete' &&
+                  !trickLocked
                 return (
                   <div
                     key={p.id}
@@ -209,6 +196,11 @@ export function GameTable() {
                 {yourTurn ? 'Your lead — tap a card' : 'Waiting for lead'}
               </p>
             )}
+            {trickLocked && (
+              <p className="mb-2 text-center text-xs text-[color:var(--color-muted)]">
+                Next trick starts in a few seconds
+              </p>
+            )}
             {pile.map((p) => (
               <div key={p.card.id} className="text-center">
                 <PlayingCard card={p.card} size={narrow ? 'md' : 'xl'} />
@@ -236,7 +228,10 @@ export function GameTable() {
         order.map((seat, i) => {
           const p = at(seat)
           const style = seatStyle(i, game.players.length)
-          const turn = Number(game.currentTurn) === Number(seat) && game.phase !== 'complete'
+          const turn =
+                  Number(game.currentTurn) === Number(seat) &&
+                  game.phase !== 'complete' &&
+                  !trickLocked
           const isBidder = game.bidderSeat === seat
           const isPartner = game.partnerSeats.includes(seat)
           const roleChip = isBidder
