@@ -73,8 +73,8 @@ export function conditionLabel(c: PartnerCondition) {
 export function partnerConditionCount(playerCount: number) {
   if (playerCount <= 5) return 1
   if (playerCount === 6) return 2
-  if (playerCount === 7) return 3
-  return 4
+  if (playerCount === 7) return 2
+  return 3
 }
 
 function twoDecks(): Card[] {
