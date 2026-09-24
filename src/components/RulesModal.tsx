@@ -68,9 +68,10 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           <Section title="Bidding">
             <p>
               Bidding starts to the dealer’s left. Bids are <strong>100–500</strong> and must beat
-              the current high bid. You may pass and come back in later. After a raise, the high
-              bidder wins when everyone else has passed (<em>n − 1</em> passes). If everyone passes
-              with no bid, the player to the dealer’s right is forced to 100.
+              the current high bid. You may pass and come back in later, or <strong>Pass all</strong> to
+              sit out the rest of bidding for this hand. After a raise, the high bidder wins when
+              everyone else has passed (<em>n − 1</em> passes, including players who passed all). If
+              everyone passes with no bid, the player to the dealer’s left is forced to 100.
             </p>
           </Section>
 

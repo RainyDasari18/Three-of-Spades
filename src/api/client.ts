@@ -228,6 +228,7 @@ export interface ApiSnapshot {
   trump: string | null
   conditions: { nth: number; rank: string; suit: string }[]
   partnerSeats: number[]
+  passedOutSeats?: number[]
   bidLog: { seat: number; kind: string; amount?: number | null }[]
   currentTrick: { seat: number; card: ApiCard; userName: string }[]
   leadSuit: string | null

@@ -42,7 +42,7 @@ function seatStyle(indexFromHuman: number, total: number): CSSProperties {
 }
 
 export function GameTable() {
-  const { game, placeBid, passBid, confirmSelection, playCard, finishToLobby, backToRooms } =
+  const { game, placeBid, passBid, passAllBid, confirmSelection, playCard, finishToLobby, backToRooms } =
     useApp()
 
   const humanSeat = game?.players.find((p) => p.isHuman)?.seat ?? 0
@@ -176,6 +176,7 @@ export function GameTable() {
                   >
                     {p.name}
                     {turn && secsLeft != null ? ` ${secsLeft}s` : ''}
+                    {game.phase === 'bidding' && game.passedOutSeats.includes(seat) ? ' · out' : ''}
                     <span className="ml-1 opacity-70">{p.hand.length}</span>
                   </div>
                 )
@@ -254,6 +255,7 @@ export function GameTable() {
                 {p.name}
                 {isBidder ? ' · Bid' : ''}
                 {isPartner ? ' · Partner' : ''}
+                {game.phase === 'bidding' && game.passedOutSeats.includes(seat) ? ' · Out' : ''}
                 {turn && secsLeft != null ? ` · ${secsLeft}s` : ''}
               </div>
               {i !== 0 && (
@@ -386,7 +388,8 @@ export function GameTable() {
               <div className="max-h-20 overflow-auto text-xs leading-4 text-[color:var(--color-muted)]">
                 {game.bidLog.map((b, i) => (
                   <div key={i}>
-                    {at(b.seat).name} {b.kind === 'pass' ? 'pass' : b.amount}
+                    {at(b.seat).name}{' '}
+                    {b.kind === 'passAll' ? 'pass all' : b.kind === 'pass' ? 'pass' : b.amount}
                   </div>
                 ))}
               </div>
@@ -402,12 +405,22 @@ export function GameTable() {
                     </button>
                   ))}
                   <button
-                    className="col-span-2 rounded-lg border border-white/20 px-2 py-1.5 text-xs"
+                    className="rounded-lg border border-white/20 px-2 py-1.5 text-xs"
                     onClick={passBid}
                   >
                     Pass
                   </button>
+                  <button
+                    className="rounded-lg border border-white/20 px-2 py-1.5 text-xs"
+                    onClick={passAllBid}
+                  >
+                    Pass all
+                  </button>
                 </div>
+              ) : game.passedOutSeats.includes(humanSeat) ? (
+                <p className="text-xs text-[color:var(--color-muted)]">
+                  You passed all — skipped for the rest of bidding.
+                </p>
               ) : (
                 <p className="text-xs text-[color:var(--color-muted)]">Waiting…</p>
               )}

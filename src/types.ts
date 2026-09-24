@@ -46,9 +46,9 @@ export interface Player {
   scoreDelta: number
 }
 
-export interface BidAction {
+export type BidAction = {
   seat: number
-  kind: 'bid' | 'pass'
+  kind: 'bid' | 'pass' | 'passAll'
   amount?: number
 }
 

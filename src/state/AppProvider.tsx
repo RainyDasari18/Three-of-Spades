@@ -45,7 +45,8 @@ export interface LiveGame {
   currentTurn: number
   bid: number
   bidderSeat: number | null
-  bidLog: { seat: number; kind: 'bid' | 'pass'; amount?: number }[]
+  bidLog: { seat: number; kind: 'bid' | 'pass' | 'passAll'; amount?: number }[]
+  passedOutSeats: number[]
   hasAnyBid: boolean
   trump: Suit | null
   conditions: PartnerCondition[]
@@ -88,6 +89,7 @@ interface AppContextValue {
   leaveRoom: () => Promise<void>
   placeBid: (amount: number) => Promise<void>
   passBid: () => Promise<void>
+  passAllBid: () => Promise<void>
   confirmSelection: (trump: Suit, conditions: PartnerCondition[]) => Promise<void>
   playCard: (cardId: string) => Promise<void>
   finishToLobby: () => Promise<void>
@@ -158,9 +160,10 @@ function mapGame(snap: ApiSnapshot, userId: string): LiveGame {
     bidderSeat,
     bidLog: (snap.bidLog ?? []).map((b) => ({
       seat: Number(b.seat),
-      kind: b.kind === 'pass' ? 'pass' : 'bid',
+      kind: b.kind === 'passAll' ? 'passAll' : b.kind === 'pass' ? 'pass' : 'bid',
       amount: b.amount ?? undefined,
     })),
+    passedOutSeats: (snap.passedOutSeats ?? []).map(Number),
     hasAnyBid: snap.hasAnyBid,
     trump: (snap.trump as Suit | null) ?? null,
     conditions: (snap.conditions ?? []).map((c) => ({
@@ -652,6 +655,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         applySnapshot(await api<ApiSnapshot>(`/api/rooms/${roomId}/game/bid`, { method: 'POST', body: JSON.stringify({ amount: args[0] }) }))
       } else if (method === 'PassBid') {
         applySnapshot(await api<ApiSnapshot>(`/api/rooms/${roomId}/game/pass`, { method: 'POST' }))
+      } else if (method === 'PassAllBid') {
+        applySnapshot(await api<ApiSnapshot>(`/api/rooms/${roomId}/game/pass-all`, { method: 'POST' }))
       } else if (method === 'Select') {
         applySnapshot(await api<ApiSnapshot>(`/api/rooms/${roomId}/game/select`, { method: 'POST', body: JSON.stringify({ trump: args[0], conditions: args[1] }) }))
       } else if (method === 'PlayCard') {
@@ -664,6 +669,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const placeBid = (amount: number) => invokeGame('PlaceBid', amount)
   const passBid = () => invokeGame('PassBid')
+  const passAllBid = () => invokeGame('PassAllBid')
   const confirmSelection = (trump: Suit, conditions: PartnerCondition[]) =>
     invokeGame('Select', trump, conditions)
   const playCard = (cardId: string) => invokeGame('PlayCard', cardId)
@@ -712,6 +718,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       leaveRoom,
       placeBid,
       passBid,
+      passAllBid,
       confirmSelection,
       playCard,
       finishToLobby,

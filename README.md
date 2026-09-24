@@ -19,7 +19,7 @@ API default: `VITE_API_URL=http://localhost:5203`
 1. Register with a **username** (shown at the table) or sign in.
 2. Create a room or join with a code.
 3. Owner: **Fill table with dummy players** (or wait for friends), everyone **Ready**, then **Start**.
-4. Bid / pass, pick trump and partners if you win, play 13 tricks.
+4. Bid, pass, or **Pass all** to sit out bidding for the rest of this hand. If you win the bid, pick trump and partners, then play 13 tricks.
 5. History and room stats update on the server after each hand.
 
 Google/GitHub sign-in is not used. Register or sign in with email, password, and a username.
