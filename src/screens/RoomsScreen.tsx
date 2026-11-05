@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Archive, LogOut, Plus, Spade, Users } from 'lucide-react'
+import { OfflineButton } from '../components/OfflineButton'
 import { RulesButton } from '../components/RulesModal'
 import { useApp } from '../state/AppProvider'
 
@@ -26,6 +27,7 @@ export function RoomsScreen() {
         </div>
         <div className="flex items-center gap-2">
           <RulesButton />
+          <OfflineButton />
           <button
             onClick={logout}
             className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm hover:bg-white/5"

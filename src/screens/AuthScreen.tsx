@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Spade } from 'lucide-react'
+import { OfflineButton } from '../components/OfflineButton'
+import { RulesButton } from '../components/RulesModal'
 import { useApp } from '../state/AppProvider'
 
 export function AuthScreen() {
@@ -11,7 +13,11 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false)
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col items-center gap-8 px-4 py-8 md:flex-row md:items-center md:gap-16 md:px-6 md:py-12">
+    <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col items-center gap-8 px-4 py-8 md:flex-row md:items-center md:gap-16 md:px-6 md:py-12">
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <RulesButton />
+        <OfflineButton />
+      </div>
       <div className="w-full md:hidden">
         <p className="text-xs tracking-[0.3em] uppercase text-[color:var(--color-gold)]">
           Trick-taking · Hidden partners

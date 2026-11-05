@@ -22,7 +22,8 @@ body,
   min-height: 100%;
 }
 
-body {
+body,
+.app-bg {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--color-ink);
